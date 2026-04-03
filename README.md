@@ -4,6 +4,8 @@ VerseFlow is a premium Android music player concept built with Kotlin, Jetpack C
 
 It is designed around one core experience: a cinematic local music player with a polished real-time lyrics screen.
 
+[Download Here](./app/build/outputs/apk/debug/app-debug.apk)
+
 The app currently focuses on:
 
 - beautiful Android UI and motion
