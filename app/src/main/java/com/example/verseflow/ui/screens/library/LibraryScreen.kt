@@ -462,8 +462,8 @@ fun LibraryScreen(
                     LibraryTab.Songs -> {
                         if (alphabeticalSongs.isEmpty()) {
                             EmptyStatePanel(
-                                title = "No songs yet",
-                                body = "Import music from your device to populate this library.",
+                                title = "No songs",
+                                body = "Download a song to start building your VerseFlow library.",
                                 modifier = Modifier.padding(horizontal = 20.dp),
                             )
                         } else {

@@ -1,8 +1,11 @@
 package com.example.verseflow
 
+import android.Manifest
 import android.app.Application
 import android.content.ComponentName
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -26,6 +29,8 @@ import com.example.verseflow.data.LocalLyricsMetadataResolver
 import com.example.verseflow.data.LyricsLookupResult
 import com.example.verseflow.data.MockMusicRepository
 import com.example.verseflow.data.MusicRepository
+import com.example.verseflow.data.PlaybackSessionStore
+import com.example.verseflow.data.SavedPlaybackSession
 import com.example.verseflow.data.SongMetadataOverride
 import com.example.verseflow.data.UserPreferencesStore
 import com.example.verseflow.data.preferredArtistQuery
@@ -80,15 +85,17 @@ class VerseFlowViewModel(
     private val deviceAudioLoader = DeviceAudioStoreLoader(application.applicationContext)
     private val lyricsRepository = LrcLibLyricsRepository()
     private val lyricsCacheStore = LyricsCacheStore(application.applicationContext)
+    private val playbackSessionStore = PlaybackSessionStore(application.applicationContext)
     private val libraryCustomizationStore = LibraryCustomizationStore(application.applicationContext)
     private val userPreferencesStore = UserPreferencesStore(application.applicationContext)
     private var player: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private val defaultProfile = userPreferencesStore.load(repository.profile())
     private val persistedLibraryCustomizations = libraryCustomizationStore.load()
-
-    private val demoCatalog = repository.toCatalog()
-    private var activeCatalog = demoCatalog
+    private val initialAudioPermissionGranted = application.hasAudioPermission()
+    private val emptyCatalog = emptyCatalogData()
+    private var activeCatalog = emptyCatalog
+    private var pendingPlaybackSession: SavedPlaybackSession? = playbackSessionStore.load()
     private var hiddenSongIds: Set<String> = persistedLibraryCustomizations.hiddenSongIds
     private var songMetadataOverrides: Map<String, SongMetadataOverride> = persistedLibraryCustomizations.songMetadataOverrides
     private var customPlaylists: List<Playlist> = emptyList()
@@ -99,14 +106,14 @@ class VerseFlowViewModel(
         buildStateFromCatalog(
             catalog = activeCatalog.applyLibraryCustomizations(hiddenSongIds, songMetadataOverrides),
             previousState = null,
-            audioPermissionGranted = false,
+            audioPermissionGranted = initialAudioPermissionGranted,
             hasScannedDeviceAudio = false,
             isScanningDeviceAudio = false,
-            catalogSource = MusicCatalogSource.Demo,
+            catalogSource = MusicCatalogSource.Device,
             playback = initialPlaybackFor(
                 songs = activeCatalog.applyLibraryCustomizations(hiddenSongIds, songMetadataOverrides).songs,
                 syncedLyricsDefault = defaultProfile.settings.showSyncedLyricsByDefault,
-                shouldAutoplay = true,
+                shouldAutoplay = false,
             ),
         ),
     )
@@ -123,6 +130,9 @@ class VerseFlowViewModel(
     init {
         initializeMediaController()
         startPlaybackTicker()
+        if (initialAudioPermissionGranted) {
+            refreshDeviceLibrary()
+        }
     }
 
     private fun initializeMediaController() {
@@ -179,7 +189,7 @@ class VerseFlowViewModel(
 
         cancelLyricsRequests()
         stopLocalPlayback()
-        activeCatalog = demoCatalog
+        activeCatalog = emptyCatalog
         val effectiveCatalog = activeCatalog.applyLibraryCustomizations(hiddenSongIds, songMetadataOverrides)
         uiState = buildStateFromCatalog(
             catalog = effectiveCatalog,
@@ -187,11 +197,11 @@ class VerseFlowViewModel(
             audioPermissionGranted = false,
             hasScannedDeviceAudio = false,
             isScanningDeviceAudio = false,
-            catalogSource = MusicCatalogSource.Demo,
+            catalogSource = MusicCatalogSource.Device,
             playback = initialPlaybackFor(
                 songs = effectiveCatalog.songs,
                 syncedLyricsDefault = uiState.profile.settings.showSyncedLyricsByDefault,
-                shouldAutoplay = true,
+                shouldAutoplay = false,
                 likedSongIds = uiState.playback.likedSongIds,
             ),
         )
@@ -203,46 +213,30 @@ class VerseFlowViewModel(
         viewModelScope.launch {
             uiState = uiState.copy(isScanningDeviceAudio = true)
             val deviceCatalog = deviceAudioLoader.load()
-            if (deviceCatalog.songs.isNotEmpty()) {
-                stopLocalPlayback()
-                activeCatalog = deviceCatalog.toCatalogData()
-                val effectiveCatalog = activeCatalog.applyLibraryCustomizations(hiddenSongIds, songMetadataOverrides)
-                val localPlayback = initialPlaybackFor(
-                    songs = effectiveCatalog.songs,
-                    syncedLyricsDefault = uiState.profile.settings.showSyncedLyricsByDefault,
-                    shouldAutoplay = false,
-                    likedSongIds = uiState.playback.likedSongIds,
-                )
-                uiState = buildStateFromCatalog(
-                    catalog = effectiveCatalog,
-                    previousState = uiState,
-                    audioPermissionGranted = true,
-                    hasScannedDeviceAudio = true,
-                    isScanningDeviceAudio = false,
-                    catalogSource = MusicCatalogSource.Device,
-                    playback = localPlayback,
-                )
-                synchronizePlayerQueue(localPlayback, startPositionMs = 0L, playWhenReady = false)
-                localPlayback.currentSong?.let { ensureLyricsForSong(it.id) }
-            } else {
-                stopLocalPlayback()
-                activeCatalog = demoCatalog
-                val effectiveCatalog = activeCatalog.applyLibraryCustomizations(hiddenSongIds, songMetadataOverrides)
-                uiState = buildStateFromCatalog(
-                    catalog = effectiveCatalog,
-                    previousState = uiState,
-                    audioPermissionGranted = true,
-                    hasScannedDeviceAudio = true,
-                    isScanningDeviceAudio = false,
-                    catalogSource = MusicCatalogSource.Demo,
-                    playback = initialPlaybackFor(
-                        songs = effectiveCatalog.songs,
-                        syncedLyricsDefault = uiState.profile.settings.showSyncedLyricsByDefault,
-                        shouldAutoplay = true,
-                        likedSongIds = uiState.playback.likedSongIds,
-                    ),
-                )
-            }
+            stopLocalPlayback()
+            activeCatalog = deviceCatalog.toCatalogData()
+            val effectiveCatalog = activeCatalog.applyLibraryCustomizations(hiddenSongIds, songMetadataOverrides)
+            val localPlayback = restoredPlaybackFor(
+                songs = effectiveCatalog.songs,
+                syncedLyricsDefault = uiState.profile.settings.showSyncedLyricsByDefault,
+                likedSongIds = uiState.playback.likedSongIds,
+            )
+            uiState = buildStateFromCatalog(
+                catalog = effectiveCatalog,
+                previousState = uiState,
+                audioPermissionGranted = true,
+                hasScannedDeviceAudio = true,
+                isScanningDeviceAudio = false,
+                catalogSource = MusicCatalogSource.Device,
+                playback = localPlayback,
+            )
+            synchronizePlayerQueue(
+                playback = localPlayback,
+                startPositionMs = localPlayback.positionMs,
+                playWhenReady = false,
+            )
+            localPlayback.currentSong?.let { ensureLyricsForSong(it.id) }
+            pendingPlaybackSession = null
         }
     }
 
@@ -369,6 +363,7 @@ class VerseFlowViewModel(
         if (currentSongId != null && currentSongId != previousSongId) {
             ensureLyricsForSong(currentSongId)
         }
+        persistPlaybackSession()
     }
 
     private fun ensureLyricsForSong(songId: String) {
@@ -726,6 +721,7 @@ class VerseFlowViewModel(
                 playWhenReady = uiState.playback.isPlaying,
             )
         }
+        persistPlaybackSession()
     }
 
     private fun reconcilePlayback(
@@ -1328,10 +1324,102 @@ class VerseFlowViewModel(
         )
     }
 
+    private fun restoredPlaybackFor(
+        songs: List<Song>,
+        syncedLyricsDefault: Boolean,
+        likedSongIds: Set<String>,
+    ): PlaybackUiState {
+        val session = pendingPlaybackSession
+        if (session == null) {
+            return initialPlaybackFor(
+                songs = songs,
+                syncedLyricsDefault = syncedLyricsDefault,
+                shouldAutoplay = false,
+                likedSongIds = likedSongIds,
+            )
+        }
+
+        val songsById = songs.associateBy(Song::id)
+        val songsByMediaUri = songs.associateBy { it.mediaUri.orEmpty() }
+        val restoredQueue = session.queueSongIds
+            .mapNotNull(songsById::get)
+            .ifEmpty {
+                session.queueSongMediaUris.mapNotNull { mediaUri ->
+                    songsByMediaUri[mediaUri]
+                }
+            }
+            .distinctBy(Song::id)
+
+        val restoredSong = session.currentSongId?.let(songsById::get)
+            ?: session.currentSongMediaUri?.let { songsByMediaUri[it] }
+            ?: restoredQueue.getOrNull(session.currentIndex)
+            ?: restoredQueue.firstOrNull()
+
+        if (restoredSong == null) {
+            return initialPlaybackFor(
+                songs = songs,
+                syncedLyricsDefault = syncedLyricsDefault,
+                shouldAutoplay = false,
+                likedSongIds = likedSongIds,
+            )
+        }
+
+        val queue = if (restoredQueue.isEmpty()) listOf(restoredSong) else restoredQueue
+        val currentIndex = queue.indexOfFirst { it.id == restoredSong.id }.coerceAtLeast(0)
+        val currentQueueSong = queue[currentIndex]
+
+        return PlaybackUiState(
+            queue = queue,
+            canonicalQueue = queue,
+            currentIndex = currentIndex,
+            positionMs = session.positionMs.coerceIn(0L, currentQueueSong.durationMs),
+            isPlaying = false,
+            isShuffled = session.isShuffled,
+            repeatMode = session.repeatMode,
+            likedSongIds = likedSongIds,
+            lyricsDisplayMode = session.lyricsDisplayMode.takeIf {
+                it == LyricsDisplayMode.Plain || currentQueueSong.lyrics.isNotEmpty() || currentQueueSong.plainLyrics.isNotEmpty()
+            } ?: if (syncedLyricsDefault) LyricsDisplayMode.Synced else LyricsDisplayMode.Plain,
+        )
+    }
+
+    private fun persistPlaybackSession() {
+        val playback = uiState.playback
+        val currentSong = playback.currentSong
+        if (currentSong?.source != SongSource.Local || currentSong.mediaUri.isNullOrBlank()) {
+            playbackSessionStore.clear()
+            return
+        }
+
+        val queueSongIds = playback.queue.map(Song::id)
+        val queueSongMediaUris = playback.queue.mapNotNull { song ->
+            song.mediaUri?.takeIf(String::isNotBlank)
+        }
+        if (queueSongIds.isEmpty() && queueSongMediaUris.isEmpty()) {
+            playbackSessionStore.clear()
+            return
+        }
+
+        playbackSessionStore.save(
+            SavedPlaybackSession(
+                currentSongId = currentSong.id,
+                currentSongMediaUri = currentSong.mediaUri,
+                queueSongIds = queueSongIds,
+                queueSongMediaUris = queueSongMediaUris,
+                currentIndex = playback.currentIndex,
+                positionMs = playback.positionMs,
+                repeatMode = playback.repeatMode,
+                isShuffled = playback.isShuffled,
+                lyricsDisplayMode = playback.lyricsDisplayMode,
+            ),
+        )
+    }
+
     override fun onCleared() {
         playbackTicker?.cancel()
         cancelLyricsRequests()
         manualLyricsSearchJob?.cancel()
+        persistPlaybackSession()
         controllerFuture?.let(MediaController::releaseFuture)
         player = null
         super.onCleared()
@@ -1380,7 +1468,8 @@ class VerseFlowViewModel(
             favoritePlaylists = catalog.favoritePlaylists.mapNotNull { favoritePlaylist ->
                 playlistsById[favoritePlaylist.id]
             },
-            recentSearches = previousState?.recentSearches ?: repository.recentSearches(),
+            recentSearches = previousState?.recentSearches
+                ?: if (catalogSource == MusicCatalogSource.Demo) repository.recentSearches() else emptyList(),
             trendingCategories = catalog.trendingCategories,
             selectedLibraryTab = previousState?.selectedLibraryTab ?: LibraryTab.Songs,
             selectedLibrarySort = previousState?.selectedLibrarySort ?: LibrarySort.Recent,
@@ -1500,14 +1589,39 @@ private fun DeviceAudioCatalog.toCatalogData(): CatalogData = CatalogData(
     recentlyPlayed = songs.take(6),
     trendingSongs = songs.take(8),
     favoritePlaylists = playlists.take(3),
-    trendingCategories = listOf(
-        "On Device",
-        "Recently Added",
-        "Offline",
-        "Local Albums",
-        "Artist Mix",
-    ),
+    trendingCategories = if (songs.isEmpty()) {
+        emptyList()
+    } else {
+        listOf(
+            "On Device",
+            "Recently Added",
+            "Offline",
+            "Local Albums",
+            "Artist Mix",
+        )
+    },
 )
+
+private fun emptyCatalogData(): CatalogData = CatalogData(
+    songs = emptyList(),
+    albums = emptyList(),
+    artists = emptyList(),
+    playlists = emptyList(),
+    featuredAlbums = emptyList(),
+    recentlyPlayed = emptyList(),
+    trendingSongs = emptyList(),
+    favoritePlaylists = emptyList(),
+    trendingCategories = emptyList(),
+)
+
+private fun Application.hasAudioPermission(): Boolean {
+    val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_AUDIO
+    } else {
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+    return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+}
 
 private fun CatalogData.replaceSong(updatedSong: Song): CatalogData {
     fun List<Song>.replaceSong(): List<Song> = map { song ->

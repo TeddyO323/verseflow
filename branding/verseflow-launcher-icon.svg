@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="leftBeam" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0%" stop-color="#F8FAFF"/>
+      <stop offset="100%" stop-color="#D9E2FF"/>
+    </linearGradient>
+    <linearGradient id="rightBeam" x1="1" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#C8D2FF"/>
+      <stop offset="100%" stop-color="#98A8FF"/>
+    </linearGradient>
+    <linearGradient id="playGlow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#66F2FF"/>
+      <stop offset="100%" stop-color="#0000FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="#050814"/>
+  <circle cx="430" cy="600" r="350" fill="#0000FF" fill-opacity="0.18"/>
+  <circle cx="730" cy="300" r="190" fill="#66F2FF" fill-opacity="0.09"/>
+  <circle cx="770" cy="770" r="140" fill="#203BFF" fill-opacity="0.11"/>
+  <path d="M278 210 L414 210 L544 775 L440 775 Z" fill="url(#leftBeam)"/>
+  <path d="M610 210 L746 210 L584 775 L480 775 Z" fill="url(#rightBeam)"/>
+  <path d="M466 355 L694 512 L466 669 Z" fill="url(#playGlow)"/>
+</svg>

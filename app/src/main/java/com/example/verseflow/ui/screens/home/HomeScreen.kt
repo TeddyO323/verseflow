@@ -54,6 +54,7 @@ import com.example.verseflow.model.VerseFlowUiState
 import com.example.verseflow.ui.components.AlbumArtwork
 import com.example.verseflow.ui.components.ArtistCard
 import com.example.verseflow.ui.components.DeviceLibraryStatusCard
+import com.example.verseflow.ui.components.EmptyStatePanel
 import com.example.verseflow.ui.components.GlassPanel
 import com.example.verseflow.ui.components.GlowIconButton
 import com.example.verseflow.ui.components.PlaylistCard
@@ -74,6 +75,10 @@ fun HomeScreen(
     onOpenSearch: () -> Unit,
     onRequestAudioPermission: () -> Unit,
 ) {
+    val showEmptyLocalLibrary = uiState.audioPermissionGranted &&
+        uiState.hasScannedDeviceAudio &&
+        uiState.catalogSource == com.example.verseflow.model.MusicCatalogSource.Device &&
+        uiState.songs.isEmpty()
     val recentlyPlayedAlbums = remember(uiState.recentlyPlayed, uiState.albumsById) {
         uiState.recentlyPlayed
             .mapNotNull { uiState.albumsById[it.albumId] }
@@ -166,113 +171,124 @@ fun HomeScreen(
                 surfaceVariantAlpha = 0.20f,
             )
         }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SectionHeader(
-                        title = "Featured Orbit",
-                        subtitle = "Cinematic albums built for full-screen listening",
-                    )
-                }
-                FeaturedCarousel(
-                    albums = uiState.featuredAlbums,
-                    onAlbumClick = onAlbumClick,
+        if (showEmptyLocalLibrary) {
+            item {
+                EmptyStatePanel(
+                    title = "No songs",
+                    body = "Download a song and rescan your device to start using VerseFlow.",
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    shape = RectangleShape,
                 )
             }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SectionHeader(
-                        title = "Recently Played",
-                        subtitle = "Albums connected to the songs you touched most recently",
+        } else {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SectionHeader(
+                            title = "Featured Orbit",
+                            subtitle = "Cinematic albums built for full-screen listening",
+                        )
+                    }
+                    FeaturedCarousel(
+                        albums = uiState.featuredAlbums,
+                        onAlbumClick = onAlbumClick,
                     )
                 }
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(end = 8.dp),
-                ) {
-                    items(recentlyPlayedAlbums, key = { it.id }) { album ->
-                        RecentlyPlayedAlbumCard(
-                            album = album,
-                            artistName = uiState.artistsById[album.artistId]?.name.orEmpty(),
-                            onClick = { onAlbumClick(album) },
-                            onAddToPlaylist = { playlistPickerAlbum = album },
-                            onAddToPlayQueue = { onAddAlbumToPlayQueue(album) },
-                            onOpenArtist = {
-                                uiState.artistsById[album.artistId]?.let(onArtistClick)
-                            },
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SectionHeader(
+                            title = "Recently Played",
+                            subtitle = "Albums connected to the songs you touched most recently",
                         )
+                    }
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(end = 8.dp),
+                    ) {
+                        items(recentlyPlayedAlbums, key = { it.id }) { album ->
+                            RecentlyPlayedAlbumCard(
+                                album = album,
+                                artistName = uiState.artistsById[album.artistId]?.name.orEmpty(),
+                                onClick = { onAlbumClick(album) },
+                                onAddToPlaylist = { playlistPickerAlbum = album },
+                                onAddToPlayQueue = { onAddAlbumToPlayQueue(album) },
+                                onOpenArtist = {
+                                    uiState.artistsById[album.artistId]?.let(onArtistClick)
+                                },
+                            )
+                        }
                     }
                 }
             }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SectionHeader(
-                        title = "Trending Tracks",
-                        subtitle = "Signal peaks from your current wave",
-                    )
-                }
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(end = 8.dp),
-                ) {
-                    items(uiState.trendingSongs.take(5), key = { it.id }) { song ->
-                        SongFeatureCard(
-                            song = song,
-                            artistName = uiState.artistsById[song.artistId]?.name.orEmpty(),
-                            supportingText = "${song.mood} • ${formatDuration(song.durationMs)}",
-                            onClick = { onSongClick(song) },
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SectionHeader(
+                            title = "Trending Tracks",
+                            subtitle = "Signal peaks from your current wave",
                         )
                     }
-                } 
-            }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SectionHeader(
-                        title = "Favorite Playlists",
-                        subtitle = "Curated worlds ready to launch",
-                    )
-                }
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(end = 8.dp),
-                ) {
-                    items(uiState.favoritePlaylists, key = { it.id }) { playlist ->
-                        PlaylistCard(
-                            playlist = playlist,
-                            onClick = { onPlaylistClick(playlist) },
-                            shape = RectangleShape,
-                            surfaceAlpha = 0.56f,
-                            surfaceVariantAlpha = 0.18f,
-                            topArtworkBleed = true,
-                            artworkHeight = 188.dp,
-                        )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(end = 8.dp),
+                    ) {
+                        items(uiState.trendingSongs.take(5), key = { it.id }) { song ->
+                            SongFeatureCard(
+                                song = song,
+                                artistName = uiState.artistsById[song.artistId]?.name.orEmpty(),
+                                supportingText = "${song.mood} • ${formatDuration(song.durationMs)}",
+                                onClick = { onSongClick(song) },
+                            )
+                        }
                     }
                 }
             }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SectionHeader(
-                        title = "Artists in Rotation",
-                        subtitle = "Stay close to the voices behind the glow",
-                    )
-                }
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(uiState.artists.take(4), key = { it.id }) { artist ->
-                        ArtistCard(
-                            artist = artist,
-                            onClick = { onArtistClick(artist) },
-                            shape = RectangleShape,
-                            surfaceAlpha = 0.56f,
-                            surfaceVariantAlpha = 0.18f,
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SectionHeader(
+                            title = "Favorite Playlists",
+                            subtitle = "Curated worlds ready to launch",
                         )
+                    }
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(end = 8.dp),
+                    ) {
+                        items(uiState.favoritePlaylists, key = { it.id }) { playlist ->
+                            PlaylistCard(
+                                playlist = playlist,
+                                onClick = { onPlaylistClick(playlist) },
+                                shape = RectangleShape,
+                                surfaceAlpha = 0.56f,
+                                surfaceVariantAlpha = 0.18f,
+                                topArtworkBleed = true,
+                                artworkHeight = 188.dp,
+                            )
+                        }
+                    }
+                }
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SectionHeader(
+                            title = "Artists in Rotation",
+                            subtitle = "Stay close to the voices behind the glow",
+                        )
+                    }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(uiState.artists.take(4), key = { it.id }) { artist ->
+                            ArtistCard(
+                                artist = artist,
+                                onClick = { onArtistClick(artist) },
+                                shape = RectangleShape,
+                                surfaceAlpha = 0.56f,
+                                surfaceVariantAlpha = 0.18f,
+                            )
+                        }
                     }
                 }
             }

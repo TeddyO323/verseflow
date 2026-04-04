@@ -1475,14 +1475,14 @@ fun DeviceLibraryStatusCard(
             body = "VerseFlow is reading audio saved on this phone so you can test real local playback."
             actionLabel = null
         }
-        catalogSource == MusicCatalogSource.Device -> {
+        catalogSource == MusicCatalogSource.Device && songCount > 0 -> {
             title = "Device library active"
             body = "$songCount songs from this phone are now available across Library, Search, and playback."
             actionLabel = "Refresh"
         }
         audioPermissionGranted && hasScannedDeviceAudio -> {
-            title = "No local songs found"
-            body = "Audio access is enabled, but no playable music files were discovered on this device."
+            title = "No songs"
+            body = "No songs were found on this phone yet. Download a song and scan again."
             actionLabel = "Rescan"
         }
         else -> {

@@ -55,6 +55,10 @@ fun SearchScreen(
     onDeleteFromStorage: (songId: String) -> Unit,
     onEditMusicInfo: (songId: String) -> Unit,
 ) {
+    val showEmptyLocalLibrary = uiState.audioPermissionGranted &&
+        uiState.hasScannedDeviceAudio &&
+        uiState.catalogSource == com.example.verseflow.model.MusicCatalogSource.Device &&
+        uiState.songs.isEmpty()
     val query = uiState.searchQuery.trim()
     val songs = uiState.songs.filter {
         query.isBlank() || it.title.contains(query, ignoreCase = true) ||
@@ -121,44 +125,55 @@ fun SearchScreen(
             }
         }
 
-        if (query.isBlank()) {
+        if (showEmptyLocalLibrary) {
             item {
-                SectionHeader(
-                    title = "Recent Searches",
-                    subtitle = "Jump back into your latest discoveries",
+                EmptyStatePanel(
+                    title = "No songs",
+                    body = "Download a song to start searching your library in VerseFlow.",
                 )
             }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    uiState.recentSearches.chunked(2).forEach { rowItems ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            rowItems.forEach { search ->
-                                VerseFilterChip(
-                                    label = search,
-                                    selected = false,
-                                    onClick = { onUseRecentSearch(search) },
-                                    modifier = Modifier.weight(1f),
-                                )
+        } else if (query.isBlank()) {
+            if (uiState.recentSearches.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "Recent Searches",
+                        subtitle = "Jump back into your latest discoveries",
+                    )
+                }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        uiState.recentSearches.chunked(2).forEach { rowItems ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                rowItems.forEach { search ->
+                                    VerseFilterChip(
+                                        label = search,
+                                        selected = false,
+                                        onClick = { onUseRecentSearch(search) },
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-            item {
-                SectionHeader(
-                    title = "Trending Categories",
-                    subtitle = "Curated modes for every kind of motion",
-                )
-            }
-            items(uiState.trendingCategories, key = { it }) { category ->
-                VerseFilterChip(
-                    label = category,
-                    selected = false,
-                    onClick = { onUseRecentSearch(category) },
-                )
+            if (uiState.trendingCategories.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "Trending Categories",
+                        subtitle = "Curated modes for every kind of motion",
+                    )
+                }
+                items(uiState.trendingCategories, key = { it }) { category ->
+                    VerseFilterChip(
+                        label = category,
+                        selected = false,
+                        onClick = { onUseRecentSearch(category) },
+                    )
+                }
             }
         } else if (songs.isEmpty() && albums.isEmpty() && artists.isEmpty() && playlists.isEmpty()) {
             item {

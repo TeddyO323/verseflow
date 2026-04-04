@@ -31,10 +31,15 @@ class VerseFlowPlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val activePlayer = player ?: return
-        if (!activePlayer.playWhenReady || activePlayer.mediaItemCount == 0) {
-            stopSelf()
+        player?.run {
+            playWhenReady = false
+            pause()
+            stop()
+            clearMediaItems()
         }
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
