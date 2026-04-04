@@ -4,7 +4,7 @@ VerseFlow is a premium Android music player concept built with Kotlin, Jetpack C
 
 It is designed around one core experience: a cinematic local music player with a polished real-time lyrics screen.
 
-[Download Here](./app/build/outputs/apk/debug/app-debug.apk)
+[Download Here](build/outputs/apk/debug/app-debug.apk)
 
 The app currently focuses on:
 
@@ -349,20 +349,6 @@ The app uses:
 - No analytics / crash-reporting integration
 - No production release signing or Play Store packaging yet
 
-## Play Store Readiness
-
-VerseFlow is not yet production-ready just because the UI is polished.
-
-Before Play Store release, the project should still add:
-
-- release signing and App Bundle generation
-- crash reporting
-- Android vitals monitoring
-- more device QA
-- playback resumption polish
-- notification and media-session edge-case testing
-- clearer licensing strategy for lyrics sources
-
 ## Future Roadmap
 
 Possible next steps:
@@ -378,26 +364,3 @@ Possible next steps:
 - real metadata rewriting to audio files
 - desktop version for macOS
 
-## MacBook Version Plan
-
-The cleanest path for a Mac version is Compose Multiplatform.
-
-Suggested roadmap:
-
-1. Move shared models, theme, and UI state into shared modules
-2. Keep Android-specific media and library APIs behind interfaces
-3. Add a desktop playback implementation
-4. Add macOS local-library scanning and artwork extraction
-5. Reuse as much of the current Compose UI as possible
-6. Package as a native macOS desktop app
-
-## Notes
-
-- This repository currently represents a premium Android music-player prototype with real local playback and a strong lyrics-first experience.
-- The project has intentionally prioritized design polish and local lyrics UX before platform expansion.
-
-## License
-
-No license file has been added yet.
-
-If you plan to open-source or distribute this project publicly, add a proper `LICENSE` file first.
