@@ -24,4 +24,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "VerseFlow"
 include(":app")
+include(":desktopApp")
  

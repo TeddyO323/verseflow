@@ -18,6 +18,69 @@ The app currently focuses on:
 
 This project is frontend-first, but it is no longer just a static UI prototype. It now includes real local playback, media notifications, lyrics lookup, caching, and device-library browsing.
 
+## Installation
+
+### Clone the project
+
+```bash
+git clone <your-repository-url>
+cd VerseFlow
+```
+
+### Android setup
+
+Requirements:
+
+- Android Studio
+- JDK 17 or higher
+- Android SDK installed
+- Android phone or emulator
+
+Steps:
+
+1. Open the project in Android Studio
+2. Let Gradle sync finish
+3. Make sure the `app` run configuration is selected
+4. Connect a phone or start an emulator
+5. Run the app
+
+Build from terminal:
+
+```bash
+JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew --no-daemon :app:assembleDebug --console=plain
+```
+
+APK output:
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Mac desktop setup
+
+Requirements:
+
+- IntelliJ IDEA
+- Kotlin Multiplatform plugin
+- JDK 17 or higher
+- macOS device
+
+Steps:
+
+1. Open the same project in IntelliJ IDEA
+2. Let Gradle import finish
+3. Run the desktop app with the Gradle task:
+
+```bash
+./gradlew :desktopApp:run
+```
+
+Desktop compile check:
+
+```bash
+JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew --no-daemon :desktopApp:compileKotlin --console=plain
+```
+
 ## Status
 
 Current state:

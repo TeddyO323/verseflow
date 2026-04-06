@@ -1,6 +1,7 @@
 [versions]
 agp = "9.1.0"
 kotlin = "2.2.20"
+composePlugin = "1.9.2"
 coreKtx = "1.17.0"
 junit = "4.13.2"
 junitVersion = "1.4.0"
@@ -39,5 +40,7 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+jetbrains-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+jetbrains-compose = { id = "org.jetbrains.compose", version.ref = "composePlugin" }
 jetbrains-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 jetbrains-kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
