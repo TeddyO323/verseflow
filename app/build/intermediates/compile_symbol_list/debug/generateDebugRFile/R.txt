@@ -12,5 +12,6 @@ int mipmap ic_launcher 0x0
 int mipmap ic_launcher_round 0x0
 int string app_name 0x0
 int style Theme_VerseFlow 0x0
+int xml automotive_app_desc 0x0
 int xml backup_rules 0x0
 int xml data_extraction_rules 0x0

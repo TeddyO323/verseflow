@@ -33,9 +33,18 @@ class LibraryCustomizationStore(
     }
 
     fun saveHiddenSongIds(songIds: Set<String>) {
-        preferences.edit()
-            .putStringSet(KEY_HIDDEN_SONG_IDS, songIds)
-            .apply()
+        val sanitizedSongIds = songIds
+            .asSequence()
+            .map { it.take(MAX_VALUE_LENGTH) }
+            .take(MAX_HIDDEN_IDS)
+            .toSet()
+        runCatching {
+            preferences.edit()
+                .putStringSet(KEY_HIDDEN_SONG_IDS, sanitizedSongIds)
+                .apply()
+        }.onFailure {
+            preferences.edit().remove(KEY_HIDDEN_SONG_IDS).apply()
+        }
     }
 
     fun saveSongMetadataOverrides(overrides: Map<String, SongMetadataOverride>) {
@@ -55,9 +64,18 @@ class LibraryCustomizationStore(
             }
         }
 
-        preferences.edit()
-            .putString(KEY_SONG_OVERRIDES, payload.toString())
-            .apply()
+        val safePayload = payload.toString().takeIf { it.length <= MAX_PAYLOAD_LENGTH } ?: run {
+            preferences.edit().remove(KEY_SONG_OVERRIDES).apply()
+            return
+        }
+
+        runCatching {
+            preferences.edit()
+                .putString(KEY_SONG_OVERRIDES, safePayload)
+                .apply()
+        }.onFailure {
+            preferences.edit().remove(KEY_SONG_OVERRIDES).apply()
+        }
     }
 
     private fun parseOverrides(payload: String): Map<String, SongMetadataOverride> {
@@ -82,5 +100,8 @@ class LibraryCustomizationStore(
     private companion object {
         const val KEY_HIDDEN_SONG_IDS = "hidden_song_ids"
         const val KEY_SONG_OVERRIDES = "song_metadata_overrides"
+        const val MAX_HIDDEN_IDS = 1_500
+        const val MAX_VALUE_LENGTH = 512
+        const val MAX_PAYLOAD_LENGTH = 48_000
     }
 }

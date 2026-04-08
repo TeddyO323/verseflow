@@ -46,24 +46,17 @@ class LyricsCacheStore(
         val key = mediaUri?.trim()?.takeIf(String::isNotEmpty) ?: return
         if (syncedLyrics.isEmpty() && plainLyrics.isEmpty()) return
 
-        val payload = JSONObject().apply {
-            put("synced", JSONArray().apply {
-                syncedLyrics.forEach { line ->
-                    put(
-                        JSONObject().apply {
-                            put("timestampMs", line.timestampMs)
-                            put("text", line.text)
-                        },
-                    )
-                }
-            })
-            put("plain", JSONArray().apply {
-                plainLyrics.forEach(::put)
-            })
-            put("attribution", attribution)
-        }
+        val payload = buildPayload(
+            syncedLyrics = syncedLyrics,
+            plainLyrics = plainLyrics,
+            attribution = attribution,
+        ) ?: return
 
-        preferences.edit().putString(key, payload.toString()).apply()
+        runCatching {
+            preferences.edit().putString(key, payload).apply()
+        }.onFailure {
+            preferences.edit().remove(key).apply()
+        }
     }
 
     fun remove(mediaUri: String?) {
@@ -87,5 +80,57 @@ class LyricsCacheStore(
                 .takeIf(String::isNotBlank)
                 ?.let(::add)
         }
+    }
+
+    private fun buildPayload(
+        syncedLyrics: List<LyricLine>,
+        plainLyrics: List<String>,
+        attribution: String?,
+    ): String? {
+        val sanitizedAttribution = attribution?.takeIf(String::isNotBlank)?.take(MAX_ATTRIBUTION_LENGTH)
+        val trimmedSyncedLyrics = syncedLyrics.take(MAX_SYNCED_LINES).map { line ->
+            line.copy(text = line.text.take(MAX_LINE_LENGTH))
+        }
+        val trimmedPlainLyrics = plainLyrics.take(MAX_PLAIN_LINES).map { line ->
+            line.take(MAX_LINE_LENGTH)
+        }
+
+        val payload = JSONObject().apply {
+            put("synced", JSONArray().apply {
+                trimmedSyncedLyrics.forEach { line ->
+                    put(
+                        JSONObject().apply {
+                            put("timestampMs", line.timestampMs)
+                            put("text", line.text)
+                        },
+                    )
+                }
+            })
+            put("plain", JSONArray().apply {
+                trimmedPlainLyrics.forEach(::put)
+            })
+            put("attribution", sanitizedAttribution)
+        }.toString()
+
+        if (payload.length <= MAX_PAYLOAD_LENGTH) return payload
+
+        val fallbackPayload = JSONObject().apply {
+            put("synced", JSONArray())
+            put("plain", JSONArray().apply {
+                trimmedPlainLyrics.take(FALLBACK_PLAIN_LINES).forEach(::put)
+            })
+            put("attribution", sanitizedAttribution)
+        }.toString()
+
+        return fallbackPayload.takeIf { it.length <= MAX_PAYLOAD_LENGTH }
+    }
+
+    private companion object {
+        const val MAX_SYNCED_LINES = 400
+        const val MAX_PLAIN_LINES = 400
+        const val FALLBACK_PLAIN_LINES = 180
+        const val MAX_LINE_LENGTH = 220
+        const val MAX_ATTRIBUTION_LENGTH = 160
+        const val MAX_PAYLOAD_LENGTH = 48_000
     }
 }

@@ -203,6 +203,9 @@ class DesktopAppStore {
     }
 
     fun loadArtistProfileOverrides(): Map<String, DesktopArtistProfileOverride> {
+        val nodeBackedOverrides = loadArtistProfileOverridesFromNode()
+        if (nodeBackedOverrides.isNotEmpty()) return nodeBackedOverrides
+
         val raw = preferences.get(KEY_ARTIST_PROFILE_OVERRIDES, null)?.trim().orEmpty()
         if (raw.isBlank()) return emptyMap()
 
@@ -221,23 +224,65 @@ class DesktopAppStore {
     }
 
     fun saveArtistProfileOverrides(overrides: Map<String, DesktopArtistProfileOverride>) {
+        val profilesNode = preferences.node(KEY_ARTIST_PROFILE_OVERRIDES_NODE)
+        runCatching {
+            profilesNode.childrenNames().forEach { childName ->
+                profilesNode.node(childName).removeNode()
+            }
+        }
         if (overrides.isEmpty()) {
             preferences.remove(KEY_ARTIST_PROFILE_OVERRIDES)
             return
         }
-        val payload = JSONObject()
         overrides.toSortedMap().forEach { (artistName, value) ->
-            payload.put(
-                artistName,
-                JSONObject()
-                    .put("photoPath", value.photoPath.orEmpty())
-                    .put("about", value.about.orEmpty()),
-            )
+            val child = profilesNode.node(artistProfileNodeName(artistName))
+            child.put(KEY_ARTIST_NAME, artistName.take(MAX_ARTIST_NAME_LENGTH))
+            value.photoPath
+                ?.trim()
+                ?.takeIf(String::isNotEmpty)
+                ?.take(MAX_PHOTO_PATH_LENGTH)
+                ?.let { child.put(KEY_ARTIST_PHOTO_PATH, it) }
+                ?: child.remove(KEY_ARTIST_PHOTO_PATH)
+            value.about
+                ?.trim()
+                ?.takeIf(String::isNotEmpty)
+                ?.take(MAX_ARTIST_ABOUT_LENGTH)
+                ?.let { child.put(KEY_ARTIST_ABOUT, it) }
+                ?: child.remove(KEY_ARTIST_ABOUT)
         }
-        preferences.put(KEY_ARTIST_PROFILE_OVERRIDES, payload.toString())
+        preferences.remove(KEY_ARTIST_PROFILE_OVERRIDES)
+    }
+
+    private fun loadArtistProfileOverridesFromNode(): Map<String, DesktopArtistProfileOverride> {
+        val profilesNode = preferences.node(KEY_ARTIST_PROFILE_OVERRIDES_NODE)
+        return runCatching {
+            profilesNode.childrenNames().mapNotNull { childName ->
+                val child = profilesNode.node(childName)
+                val artistName = child.get(KEY_ARTIST_NAME, null)?.trim().orEmpty()
+                if (artistName.isBlank()) return@mapNotNull null
+                artistName to DesktopArtistProfileOverride(
+                    photoPath = child.get(KEY_ARTIST_PHOTO_PATH, null)?.trim()?.ifBlank { null },
+                    about = child.get(KEY_ARTIST_ABOUT, null)?.trim()?.ifBlank { null },
+                )
+            }.toMap()
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun artistProfileNodeName(artistName: String): String {
+        val normalized = artistName
+            .lowercase()
+            .replace(Regex("""[^a-z0-9]+"""), "_")
+            .trim('_')
+            .ifBlank { "artist" }
+            .take(40)
+        val suffix = artistName.hashCode().toUInt().toString(16)
+        return "${normalized}_$suffix"
     }
 
     fun loadPlayHistory(): List<DesktopPlayHistoryEntry> {
+        val nodeBackedEntries = loadPlayHistoryFromNode()
+        if (nodeBackedEntries.isNotEmpty()) return nodeBackedEntries
+
         val raw = preferences.get(KEY_PLAY_HISTORY, null)?.trim().orEmpty()
         if (raw.isBlank()) return emptyList()
 
@@ -261,24 +306,61 @@ class DesktopAppStore {
     }
 
     fun savePlayHistory(entries: List<DesktopPlayHistoryEntry>) {
+        val historyNode = preferences.node(KEY_PLAY_HISTORY_NODE)
+        runCatching {
+            historyNode.childrenNames().forEach { childName ->
+                historyNode.node(childName).removeNode()
+            }
+        }
         if (entries.isEmpty()) {
             preferences.remove(KEY_PLAY_HISTORY)
             return
         }
-
-        val payload = JSONArray()
         entries.take(MAX_PLAY_HISTORY_ENTRIES).forEach { entry ->
-            payload.put(
-                JSONObject()
-                    .put("trackPath", entry.trackPath)
-                    .put("title", entry.title)
-                    .put("artist", entry.artist)
-                    .put("album", entry.album)
-                    .put("listenedMs", entry.listenedMs.coerceAtLeast(0L))
-                    .put("playedAtMs", entry.playedAtMs.coerceAtLeast(0L)),
-            )
+            val child = historyNode.node(playHistoryNodeName(entry))
+            child.put(KEY_HISTORY_TRACK_PATH, entry.trackPath.take(MAX_HISTORY_TEXT_LENGTH))
+            child.put(KEY_HISTORY_TITLE, entry.title.take(MAX_HISTORY_TEXT_LENGTH))
+            child.put(KEY_HISTORY_ARTIST, entry.artist.take(MAX_HISTORY_TEXT_LENGTH))
+            child.put(KEY_HISTORY_ALBUM, entry.album.take(MAX_HISTORY_TEXT_LENGTH))
+            child.putLong(KEY_HISTORY_LISTENED_MS, entry.listenedMs.coerceAtLeast(0L))
+            child.putLong(KEY_HISTORY_PLAYED_AT_MS, entry.playedAtMs.coerceAtLeast(0L))
         }
-        preferences.put(KEY_PLAY_HISTORY, payload.toString())
+        preferences.remove(KEY_PLAY_HISTORY)
+    }
+
+    private fun loadPlayHistoryFromNode(): List<DesktopPlayHistoryEntry> {
+        val historyNode = preferences.node(KEY_PLAY_HISTORY_NODE)
+        return runCatching {
+            historyNode.childrenNames()
+                .mapNotNull { childName ->
+                    val child = historyNode.node(childName)
+                    val trackPath = child.get(KEY_HISTORY_TRACK_PATH, null)?.trim().orEmpty()
+                    if (trackPath.isBlank()) return@mapNotNull null
+                    DesktopPlayHistoryEntry(
+                        trackPath = trackPath,
+                        title = child.get(KEY_HISTORY_TITLE, null)?.ifBlank { trackPath.substringAfterLast('/') }
+                            ?: trackPath.substringAfterLast('/'),
+                        artist = child.get(KEY_HISTORY_ARTIST, null)?.ifBlank { "Unknown Artist" } ?: "Unknown Artist",
+                        album = child.get(KEY_HISTORY_ALBUM, null)?.ifBlank { "Unknown Album" } ?: "Unknown Album",
+                        listenedMs = child.getLong(KEY_HISTORY_LISTENED_MS, 0L).coerceAtLeast(0L),
+                        playedAtMs = child.getLong(KEY_HISTORY_PLAYED_AT_MS, 0L).coerceAtLeast(0L),
+                    )
+                }
+                .sortedByDescending(DesktopPlayHistoryEntry::playedAtMs)
+                .take(MAX_PLAY_HISTORY_ENTRIES)
+        }.getOrDefault(emptyList())
+    }
+
+    private fun playHistoryNodeName(entry: DesktopPlayHistoryEntry): String {
+        val base = entry.trackPath
+            .substringAfterLast('/')
+            .lowercase()
+            .replace(Regex("""[^a-z0-9]+"""), "_")
+            .trim('_')
+            .ifBlank { "track" }
+            .take(32)
+        val suffix = (entry.playedAtMs.toString() + entry.trackPath).hashCode().toUInt().toString(16)
+        return "${base}_$suffix"
     }
 
     private companion object {
@@ -294,8 +376,23 @@ class DesktopAppStore {
         const val KEY_HIDDEN_TRACKS = "desktop_hidden_track_paths_json"
         const val KEY_TRACK_OVERRIDES = "desktop_track_overrides_json"
         const val KEY_ARTIST_PROFILE_OVERRIDES = "desktop_artist_profile_overrides_json"
+        const val KEY_ARTIST_PROFILE_OVERRIDES_NODE = "desktop_artist_profile_overrides_v2"
+        const val KEY_ARTIST_NAME = "artist_name"
+        const val KEY_ARTIST_PHOTO_PATH = "photo_path"
+        const val KEY_ARTIST_ABOUT = "about"
         const val KEY_PLAY_HISTORY = "desktop_play_history_json"
+        const val KEY_PLAY_HISTORY_NODE = "desktop_play_history_v2"
+        const val KEY_HISTORY_TRACK_PATH = "track_path"
+        const val KEY_HISTORY_TITLE = "title"
+        const val KEY_HISTORY_ARTIST = "artist"
+        const val KEY_HISTORY_ALBUM = "album"
+        const val KEY_HISTORY_LISTENED_MS = "listened_ms"
+        const val KEY_HISTORY_PLAYED_AT_MS = "played_at_ms"
         const val MAX_RECENT_SEARCHES = 10
         const val MAX_PLAY_HISTORY_ENTRIES = 2500
+        const val MAX_ARTIST_NAME_LENGTH = 256
+        const val MAX_PHOTO_PATH_LENGTH = 2048
+        const val MAX_ARTIST_ABOUT_LENGTH = 4000
+        const val MAX_HISTORY_TEXT_LENGTH = 2048
     }
 }

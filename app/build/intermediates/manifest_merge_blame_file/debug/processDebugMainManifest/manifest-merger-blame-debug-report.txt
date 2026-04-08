@@ -12,173 +12,253 @@
 9-->INJECTED
 10
 11    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-11-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:5:5-75
-11-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:5:22-72
+11-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:5:5-75
+11-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:5:22-72
 12    <uses-permission android:name="android.permission.INTERNET" />
-12-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:6:5-67
-12-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:6:22-64
+12-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:6:5-67
+12-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:6:22-64
 13    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-13-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:7:5-77
-13-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:7:22-74
+13-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:7:5-77
+13-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:7:22-74
 14    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-14-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:8:5-92
-14-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:8:22-89
-15    <uses-permission
-15-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:9:5-11:38
-16        android:name="android.permission.READ_EXTERNAL_STORAGE"
-16-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:10:9-64
-17        android:maxSdkVersion="32" />
-17-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:11:9-35
-18    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-18-->[androidx.media3:media3-common:1.8.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/7301fa8da544c11ce6320bb73ff7c84a/transformed/media3-common-1.8.0/AndroidManifest.xml:22:5-79
-18-->[androidx.media3:media3-common:1.8.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/7301fa8da544c11ce6320bb73ff7c84a/transformed/media3-common-1.8.0/AndroidManifest.xml:22:22-76
+14-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:8:5-92
+14-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:8:22-89
+15    <uses-permission android:name="androidx.car.app.MEDIA_TEMPLATES" />
+15-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:9:5-72
+15-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:9:22-69
+16    <uses-permission
+16-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:10:5-12:38
+17        android:name="android.permission.READ_EXTERNAL_STORAGE"
+17-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:11:9-64
+18        android:maxSdkVersion="32" />
+18-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:12:9-35
 19
-20    <permission
-20-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/cfd78e994c7cac63985e8fb5b7e32f65/transformed/core-1.17.0/AndroidManifest.xml:22:5-24:47
-21        android:name="com.example.verseflow.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-21-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/cfd78e994c7cac63985e8fb5b7e32f65/transformed/core-1.17.0/AndroidManifest.xml:23:9-81
-22        android:protectionLevel="signature" />
-22-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/cfd78e994c7cac63985e8fb5b7e32f65/transformed/core-1.17.0/AndroidManifest.xml:24:9-44
-23
-24    <uses-permission android:name="com.example.verseflow.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
-24-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/cfd78e994c7cac63985e8fb5b7e32f65/transformed/core-1.17.0/AndroidManifest.xml:26:5-97
-24-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/cfd78e994c7cac63985e8fb5b7e32f65/transformed/core-1.17.0/AndroidManifest.xml:26:22-94
+20    <queries>
+20-->[androidx.car.app:app:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/47c601420b352ba47da5ed1500aa04d2/transformed/app-1.7.0/AndroidManifest.xml:23:5-28:15
+21        <provider
+21-->[androidx.car.app:app:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/47c601420b352ba47da5ed1500aa04d2/transformed/app-1.7.0/AndroidManifest.xml:24:9-27:43
+22            android:name="androidx.car.app.connection.provider"
+22-->[androidx.car.app:app:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/47c601420b352ba47da5ed1500aa04d2/transformed/app-1.7.0/AndroidManifest.xml:25:13-64
+23            android:authorities="androidx.car.app.connection" />
+23-->[androidx.car.app:app:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/47c601420b352ba47da5ed1500aa04d2/transformed/app-1.7.0/AndroidManifest.xml:26:13-62
+24    </queries>
 25
-26    <application
-26-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:13:5-42:19
-27        android:allowBackup="true"
-27-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:14:9-35
-28        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-28-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/cfd78e994c7cac63985e8fb5b7e32f65/transformed/core-1.17.0/AndroidManifest.xml:28:18-86
-29        android:dataExtractionRules="@xml/data_extraction_rules"
-29-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:15:9-65
-30        android:debuggable="true"
-31        android:extractNativeLibs="false"
-31-->INJECTED
-32        android:fullBackupContent="@xml/backup_rules"
-32-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:16:9-54
-33        android:icon="@mipmap/ic_launcher"
-33-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:17:9-43
-34        android:label="@string/app_name"
-34-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:18:9-41
-35        android:roundIcon="@mipmap/ic_launcher_round"
-35-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:19:9-54
-36        android:supportsRtl="true"
-36-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:20:9-35
-37        android:testOnly="true"
-38        android:theme="@style/Theme.VerseFlow" >
-38-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:21:9-47
-39        <activity
-39-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:22:9-31:20
-40            android:name="com.example.verseflow.MainActivity"
-40-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:23:13-41
-41            android:exported="true"
-41-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:24:13-36
-42            android:theme="@style/Theme.VerseFlow" >
-42-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:25:13-51
-43            <intent-filter>
-43-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:26:13-30:29
-44                <action android:name="android.intent.action.MAIN" />
-44-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:27:17-69
-44-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:27:25-66
-45
-46                <category android:name="android.intent.category.LAUNCHER" />
-46-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:29:17-77
-46-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:29:27-74
-47            </intent-filter>
-48        </activity>
-49
-50        <service
-50-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:33:9-41:19
-51            android:name="com.example.verseflow.VerseFlowPlaybackService"
-51-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:34:13-53
-52            android:exported="true"
-52-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:35:13-36
-53            android:foregroundServiceType="mediaPlayback" >
-53-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:36:13-58
-54            <intent-filter>
-54-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:37:13-40:29
-55                <action android:name="androidx.media3.session.MediaSessionService" />
-55-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:38:17-86
-55-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:38:25-83
-56                <action android:name="android.media.browse.MediaBrowserService" />
-56-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:39:17-83
-56-->/Users/aliceakinyiolango/AndroidStudioProjects/VerseFlow/app/src/main/AndroidManifest.xml:39:25-80
-57            </intent-filter>
-58        </service>
-59
-60        <activity
-60-->[androidx.compose.ui:ui-tooling-android:1.9.2] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/eabdedfd2b68a4db937858cccf2866bf/transformed/ui-tooling/AndroidManifest.xml:23:9-25:39
-61            android:name="androidx.compose.ui.tooling.PreviewActivity"
-61-->[androidx.compose.ui:ui-tooling-android:1.9.2] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/eabdedfd2b68a4db937858cccf2866bf/transformed/ui-tooling/AndroidManifest.xml:24:13-71
-62            android:exported="true" />
-62-->[androidx.compose.ui:ui-tooling-android:1.9.2] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/eabdedfd2b68a4db937858cccf2866bf/transformed/ui-tooling/AndroidManifest.xml:25:13-36
-63
-64        <provider
-64-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/80a5586b004ff886b1329013d5c27cd0/transformed/emoji2-1.4.0/AndroidManifest.xml:24:9-32:20
-65            android:name="androidx.startup.InitializationProvider"
-65-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/80a5586b004ff886b1329013d5c27cd0/transformed/emoji2-1.4.0/AndroidManifest.xml:25:13-67
-66            android:authorities="com.example.verseflow.androidx-startup"
-66-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/80a5586b004ff886b1329013d5c27cd0/transformed/emoji2-1.4.0/AndroidManifest.xml:26:13-68
-67            android:exported="false" >
-67-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/80a5586b004ff886b1329013d5c27cd0/transformed/emoji2-1.4.0/AndroidManifest.xml:27:13-37
-68            <meta-data
-68-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/80a5586b004ff886b1329013d5c27cd0/transformed/emoji2-1.4.0/AndroidManifest.xml:29:13-31:52
-69                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-69-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/80a5586b004ff886b1329013d5c27cd0/transformed/emoji2-1.4.0/AndroidManifest.xml:30:17-75
-70                android:value="androidx.startup" />
-70-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/80a5586b004ff886b1329013d5c27cd0/transformed/emoji2-1.4.0/AndroidManifest.xml:31:17-49
-71            <meta-data
-71-->[androidx.lifecycle:lifecycle-process:2.9.4] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/65a94f20b8f13851e395887731027636/transformed/lifecycle-process-2.9.4/AndroidManifest.xml:29:13-31:52
-72                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-72-->[androidx.lifecycle:lifecycle-process:2.9.4] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/65a94f20b8f13851e395887731027636/transformed/lifecycle-process-2.9.4/AndroidManifest.xml:30:17-78
-73                android:value="androidx.startup" />
-73-->[androidx.lifecycle:lifecycle-process:2.9.4] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/65a94f20b8f13851e395887731027636/transformed/lifecycle-process-2.9.4/AndroidManifest.xml:31:17-49
-74            <meta-data
-74-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:29:13-31:52
-75                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-75-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:30:17-85
-76                android:value="androidx.startup" />
-76-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:31:17-49
-77        </provider>
-78
-79        <receiver
-79-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:34:9-52:20
-80            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-80-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:35:13-76
-81            android:directBootAware="false"
-81-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:36:13-44
-82            android:enabled="true"
-82-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:37:13-35
-83            android:exported="true"
-83-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:38:13-36
-84            android:permission="android.permission.DUMP" >
-84-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:39:13-57
-85            <intent-filter>
-85-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:40:13-42:29
-86                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
-86-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:41:17-91
-86-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:41:25-88
-87            </intent-filter>
-88            <intent-filter>
-88-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:43:13-45:29
-89                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
-89-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:44:17-85
-89-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:44:25-82
-90            </intent-filter>
-91            <intent-filter>
-91-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:46:13-48:29
-92                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
-92-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:47:17-88
-92-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:47:25-85
-93            </intent-filter>
-94            <intent-filter>
-94-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:49:13-51:29
-95                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
-95-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:50:17-95
-95-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/10e800f37c8ac28e0c0a278f4a56fc6f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:50:25-92
-96            </intent-filter>
-97        </receiver>
-98    </application>
-99
-100</manifest>
+26    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+26-->[androidx.media3:media3-common:1.8.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/fd88a8267982476f83dba20393fbc3ed/transformed/media3-common-1.8.0/AndroidManifest.xml:22:5-79
+26-->[androidx.media3:media3-common:1.8.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/fd88a8267982476f83dba20393fbc3ed/transformed/media3-common-1.8.0/AndroidManifest.xml:22:22-76
+27
+28    <permission
+28-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/43cc0bf99d97ad8d47d16897c1bd86cb/transformed/core-1.17.0/AndroidManifest.xml:22:5-24:47
+29        android:name="com.example.verseflow.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+29-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/43cc0bf99d97ad8d47d16897c1bd86cb/transformed/core-1.17.0/AndroidManifest.xml:23:9-81
+30        android:protectionLevel="signature" />
+30-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/43cc0bf99d97ad8d47d16897c1bd86cb/transformed/core-1.17.0/AndroidManifest.xml:24:9-44
+31
+32    <uses-permission android:name="com.example.verseflow.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+32-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/43cc0bf99d97ad8d47d16897c1bd86cb/transformed/core-1.17.0/AndroidManifest.xml:26:5-97
+32-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/43cc0bf99d97ad8d47d16897c1bd86cb/transformed/core-1.17.0/AndroidManifest.xml:26:22-94
+33
+34    <application
+34-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:14:5-60:19
+35        android:allowBackup="true"
+35-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:15:9-35
+36        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+36-->[androidx.core:core:1.17.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/43cc0bf99d97ad8d47d16897c1bd86cb/transformed/core-1.17.0/AndroidManifest.xml:28:18-86
+37        android:dataExtractionRules="@xml/data_extraction_rules"
+37-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:16:9-65
+38        android:debuggable="true"
+39        android:extractNativeLibs="false"
+39-->INJECTED
+40        android:fullBackupContent="@xml/backup_rules"
+40-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:17:9-54
+41        android:icon="@mipmap/ic_launcher"
+41-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:18:9-43
+42        android:label="@string/app_name"
+42-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:19:9-41
+43        android:roundIcon="@mipmap/ic_launcher_round"
+43-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:20:9-54
+44        android:supportsRtl="true"
+44-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:21:9-35
+45        android:testOnly="true"
+46        android:theme="@style/Theme.VerseFlow" >
+46-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:22:9-47
+47        <meta-data
+47-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:23:9-25:59
+48            android:name="com.google.android.gms.car.application"
+48-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:24:13-66
+49            android:resource="@xml/automotive_app_desc" />
+49-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:25:13-56
+50        <meta-data
+50-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:26:9-28:33
+51            android:name="androidx.car.app.minCarApiLevel"
+51-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:27:13-59
+52            android:value="8" />
+52-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:28:13-30
+53
+54        <activity
+54-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:30:9-39:20
+55            android:name="com.example.verseflow.MainActivity"
+55-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:31:13-41
+56            android:exported="true"
+56-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:32:13-36
+57            android:theme="@style/Theme.VerseFlow" >
+57-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:33:13-51
+58            <intent-filter>
+58-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:34:13-38:29
+59                <action android:name="android.intent.action.MAIN" />
+59-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:35:17-69
+59-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:35:25-66
+60
+61                <category android:name="android.intent.category.LAUNCHER" />
+61-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:37:17-77
+61-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:37:27-74
+62            </intent-filter>
+63        </activity>
+64
+65        <service
+65-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:41:9-50:19
+66            android:name="com.example.verseflow.VerseFlowPlaybackService"
+66-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:42:13-53
+67            android:exported="true"
+67-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:43:13-36
+68            android:foregroundServiceType="mediaPlayback" >
+68-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:44:13-58
+69            <intent-filter>
+69-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:45:13-49:29
+70                <action android:name="androidx.media3.session.MediaLibraryService" />
+70-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:46:17-86
+70-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:46:25-83
+71                <action android:name="androidx.media3.session.MediaSessionService" />
+71-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:47:17-86
+71-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:47:25-83
+72                <action android:name="android.media.browse.MediaBrowserService" />
+72-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:48:17-83
+72-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:48:25-80
+73            </intent-filter>
+74        </service>
+75        <service
+75-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:52:9-59:19
+76            android:name="com.example.verseflow.auto.VerseFlowCarAppService"
+76-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:53:13-56
+77            android:exported="true" >
+77-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:54:13-36
+78            <intent-filter>
+78-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:55:13-58:29
+79                <action android:name="androidx.car.app.CarAppService" />
+79-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:56:17-73
+79-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:56:25-70
+80
+81                <category android:name="androidx.car.app.category.MEDIA" />
+81-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:57:17-76
+81-->/Users/aliceakinyiolango/Documents/GitHub/verseflow/app/src/main/AndroidManifest.xml:57:27-73
+82            </intent-filter>
+83        </service>
+84        <service
+84-->[androidx.car.app:app-projected:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f4968186fed5be7a321108db0ecc7d80/transformed/app-projected-1.7.0/AndroidManifest.xml:24:9-34:19
+85            android:name="androidx.car.app.CarAppMetadataHolderService"
+85-->[androidx.car.app:app-projected:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f4968186fed5be7a321108db0ecc7d80/transformed/app-projected-1.7.0/AndroidManifest.xml:25:13-72
+86            android:enabled="false"
+86-->[androidx.car.app:app-projected:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f4968186fed5be7a321108db0ecc7d80/transformed/app-projected-1.7.0/AndroidManifest.xml:26:13-36
+87            android:exported="false"
+87-->[androidx.car.app:app-projected:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f4968186fed5be7a321108db0ecc7d80/transformed/app-projected-1.7.0/AndroidManifest.xml:27:13-37
+88            android:process="" >
+88-->[androidx.car.app:app-projected:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f4968186fed5be7a321108db0ecc7d80/transformed/app-projected-1.7.0/AndroidManifest.xml:28:13-31
+89            <meta-data
+89-->[androidx.car.app:app-projected:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f4968186fed5be7a321108db0ecc7d80/transformed/app-projected-1.7.0/AndroidManifest.xml:31:13-33:89
+90                android:name="androidx.car.app.CarAppMetadataHolderService.CAR_HARDWARE_MANAGER"
+90-->[androidx.car.app:app-projected:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f4968186fed5be7a321108db0ecc7d80/transformed/app-projected-1.7.0/AndroidManifest.xml:32:17-97
+91                android:value="androidx.car.app.hardware.ProjectedCarHardwareManager" />
+91-->[androidx.car.app:app-projected:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f4968186fed5be7a321108db0ecc7d80/transformed/app-projected-1.7.0/AndroidManifest.xml:33:17-86
+92        </service>
+93
+94        <activity
+94-->[androidx.car.app:app:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/47c601420b352ba47da5ed1500aa04d2/transformed/app-1.7.0/AndroidManifest.xml:31:9-34:75
+95            android:name="androidx.car.app.CarAppPermissionActivity"
+95-->[androidx.car.app:app:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/47c601420b352ba47da5ed1500aa04d2/transformed/app-1.7.0/AndroidManifest.xml:32:13-69
+96            android:exported="false"
+96-->[androidx.car.app:app:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/47c601420b352ba47da5ed1500aa04d2/transformed/app-1.7.0/AndroidManifest.xml:33:13-37
+97            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+97-->[androidx.car.app:app:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/47c601420b352ba47da5ed1500aa04d2/transformed/app-1.7.0/AndroidManifest.xml:34:13-72
+98
+99        <receiver
+99-->[androidx.car.app:app:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/47c601420b352ba47da5ed1500aa04d2/transformed/app-1.7.0/AndroidManifest.xml:36:9-38:40
+100            android:name="androidx.car.app.notification.CarAppNotificationBroadcastReceiver"
+100-->[androidx.car.app:app:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/47c601420b352ba47da5ed1500aa04d2/transformed/app-1.7.0/AndroidManifest.xml:37:13-93
+101            android:exported="false" />
+101-->[androidx.car.app:app:1.7.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/47c601420b352ba47da5ed1500aa04d2/transformed/app-1.7.0/AndroidManifest.xml:38:13-37
+102
+103        <activity
+103-->[androidx.compose.ui:ui-tooling-android:1.9.2] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/4ee25d812214c0907a7cf47f95bf8755/transformed/ui-tooling/AndroidManifest.xml:23:9-25:39
+104            android:name="androidx.compose.ui.tooling.PreviewActivity"
+104-->[androidx.compose.ui:ui-tooling-android:1.9.2] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/4ee25d812214c0907a7cf47f95bf8755/transformed/ui-tooling/AndroidManifest.xml:24:13-71
+105            android:exported="true" />
+105-->[androidx.compose.ui:ui-tooling-android:1.9.2] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/4ee25d812214c0907a7cf47f95bf8755/transformed/ui-tooling/AndroidManifest.xml:25:13-36
+106
+107        <provider
+107-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f65c563e1b99da1d91f74c422c1077c0/transformed/emoji2-1.4.0/AndroidManifest.xml:24:9-32:20
+108            android:name="androidx.startup.InitializationProvider"
+108-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f65c563e1b99da1d91f74c422c1077c0/transformed/emoji2-1.4.0/AndroidManifest.xml:25:13-67
+109            android:authorities="com.example.verseflow.androidx-startup"
+109-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f65c563e1b99da1d91f74c422c1077c0/transformed/emoji2-1.4.0/AndroidManifest.xml:26:13-68
+110            android:exported="false" >
+110-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f65c563e1b99da1d91f74c422c1077c0/transformed/emoji2-1.4.0/AndroidManifest.xml:27:13-37
+111            <meta-data
+111-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f65c563e1b99da1d91f74c422c1077c0/transformed/emoji2-1.4.0/AndroidManifest.xml:29:13-31:52
+112                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+112-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f65c563e1b99da1d91f74c422c1077c0/transformed/emoji2-1.4.0/AndroidManifest.xml:30:17-75
+113                android:value="androidx.startup" />
+113-->[androidx.emoji2:emoji2:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/f65c563e1b99da1d91f74c422c1077c0/transformed/emoji2-1.4.0/AndroidManifest.xml:31:17-49
+114            <meta-data
+114-->[androidx.lifecycle:lifecycle-process:2.9.4] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/6c430cb2750d9183099e0e1dbc1fb3ad/transformed/lifecycle-process-2.9.4/AndroidManifest.xml:29:13-31:52
+115                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+115-->[androidx.lifecycle:lifecycle-process:2.9.4] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/6c430cb2750d9183099e0e1dbc1fb3ad/transformed/lifecycle-process-2.9.4/AndroidManifest.xml:30:17-78
+116                android:value="androidx.startup" />
+116-->[androidx.lifecycle:lifecycle-process:2.9.4] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/6c430cb2750d9183099e0e1dbc1fb3ad/transformed/lifecycle-process-2.9.4/AndroidManifest.xml:31:17-49
+117            <meta-data
+117-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:29:13-31:52
+118                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+118-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:30:17-85
+119                android:value="androidx.startup" />
+119-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:31:17-49
+120        </provider>
+121
+122        <receiver
+122-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:34:9-52:20
+123            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+123-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:35:13-76
+124            android:directBootAware="false"
+124-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:36:13-44
+125            android:enabled="true"
+125-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:37:13-35
+126            android:exported="true"
+126-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:38:13-36
+127            android:permission="android.permission.DUMP" >
+127-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:39:13-57
+128            <intent-filter>
+128-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:40:13-42:29
+129                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+129-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:41:17-91
+129-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:41:25-88
+130            </intent-filter>
+131            <intent-filter>
+131-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:43:13-45:29
+132                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+132-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:44:17-85
+132-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:44:25-82
+133            </intent-filter>
+134            <intent-filter>
+134-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:46:13-48:29
+135                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+135-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:47:17-88
+135-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:47:25-85
+136            </intent-filter>
+137            <intent-filter>
+137-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:49:13-51:29
+138                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+138-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:50:17-95
+138-->[androidx.profileinstaller:profileinstaller:1.4.0] /Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/66ff69fc795233d67883cf0d955f598f/transformed/profileinstaller-1.4.0/AndroidManifest.xml:50:25-92
+139            </intent-filter>
+140        </receiver>
+141    </application>
+142
+143</manifest>

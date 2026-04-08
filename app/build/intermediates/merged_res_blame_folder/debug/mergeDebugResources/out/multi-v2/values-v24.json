@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.verseflow.app-mergeDebugResources-54:/values-v24/values-v24.xml",
+            "outputFile": "com.example.verseflow.app-mergeDebugResources-56:/values-v24/values-v24.xml",
             "map": [
                 {
-                    "source": "/Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/ce570e94dbd13734fdadcdd7de2f07bc/transformed/material-1.13.0/res/values-v24/values-v24.xml",
+                    "source": "/Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/ca0fdc0a680e2e79cf4c29cb6663a2a6/transformed/material-1.13.0/res/values-v24/values-v24.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,9,12,15",
                         "startColumns": "4,4,4,4,4,4,4,4",
@@ -23,7 +23,17 @@
                     }
                 },
                 {
-                    "source": "/Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/4c5eaa6873a96e2039ec270801b80b0e/transformed/media3-session-1.8.0/res/values-v24/values-v24.xml",
+                    "source": "/Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/795bc615455b9c24a0d8557fe8b5ac5c/transformed/appcompat-1.7.0/res/values-v24/values-v24.xml",
+                    "from": {
+                        "startLines": "2,3",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,212",
+                        "endColumns": "156,134",
+                        "endOffsets": "207,342"
+                    }
+                },
+                {
+                    "source": "/Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/9ec805ecb761d9f24711c852c8ec6df8/transformed/media3-session-1.8.0/res/values-v24/values-v24.xml",
                     "from": {
                         "startLines": "2,3,4,5",
                         "startColumns": "4,4,4,4",
@@ -37,16 +47,6 @@
                         "startOffsets": "1547,1613,1674,1740",
                         "endColumns": "65,60,65,66",
                         "endOffsets": "1608,1669,1735,1802"
-                    }
-                },
-                {
-                    "source": "/Users/aliceakinyiolango/.gradle/caches/9.3.1/transforms/fb3771b518c536123ed9485a238ec7aa/transformed/appcompat-1.7.0/res/values-v24/values-v24.xml",
-                    "from": {
-                        "startLines": "2,3",
-                        "startColumns": "4,4",
-                        "startOffsets": "55,212",
-                        "endColumns": "156,134",
-                        "endOffsets": "207,342"
                     }
                 }
             ]

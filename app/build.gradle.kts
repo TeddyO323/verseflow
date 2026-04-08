@@ -60,6 +60,8 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.session)
+    implementation(libs.androidx.car.app.core)
+    implementation(libs.androidx.car.app)
     implementation(libs.google.material)
 
     testImplementation(libs.junit)

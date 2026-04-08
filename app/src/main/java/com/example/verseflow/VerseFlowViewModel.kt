@@ -75,6 +75,8 @@ class VerseFlowViewModel(
 ) : AndroidViewModel(application) {
 
     companion object {
+        private const val MAX_PLAYER_QUEUE_ITEMS = 100
+
         fun factory(application: Application): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 VerseFlowViewModel(application)
@@ -312,7 +314,8 @@ class VerseFlowViewModel(
             return
         }
 
-        val mediaItems = playback.queue.map { song ->
+        val (playbackWindow, playbackWindowIndex) = buildPlayerQueueWindow(playback)
+        val mediaItems = playbackWindow.map { song ->
             MediaItem.Builder()
                 .setMediaId(song.id)
                 .setUri(song.mediaUri)
@@ -328,12 +331,27 @@ class VerseFlowViewModel(
         }
         controller.setMediaItems(
             mediaItems,
-            playback.currentIndex.coerceIn(0, mediaItems.lastIndex),
+            playbackWindowIndex.coerceIn(0, mediaItems.lastIndex),
             startPositionMs.coerceAtLeast(0L),
         )
         controller.repeatMode = playback.repeatMode.toPlayerRepeatMode()
         controller.prepare()
         controller.playWhenReady = playWhenReady
+    }
+
+    private fun buildPlayerQueueWindow(playback: PlaybackUiState): Pair<List<Song>, Int> {
+        if (playback.queue.isEmpty()) return emptyList<Song>() to 0
+
+        val safeCurrentIndex = playback.currentIndex.coerceIn(0, playback.queue.lastIndex)
+        if (playback.queue.size <= MAX_PLAYER_QUEUE_ITEMS) {
+            return playback.queue to safeCurrentIndex
+        }
+
+        val itemsBeforeCurrent = MAX_PLAYER_QUEUE_ITEMS / 2
+        val tentativeStart = (safeCurrentIndex - itemsBeforeCurrent).coerceAtLeast(0)
+        val start = tentativeStart.coerceAtMost(playback.queue.size - MAX_PLAYER_QUEUE_ITEMS)
+        val endExclusive = (start + MAX_PLAYER_QUEUE_ITEMS).coerceAtMost(playback.queue.size)
+        return playback.queue.subList(start, endExclusive) to (safeCurrentIndex - start)
     }
 
     private fun stopLocalPlayback() {
@@ -1424,7 +1442,6 @@ class VerseFlowViewModel(
         player = null
         super.onCleared()
     }
-
     private fun buildStateFromCatalog(
         catalog: CatalogData,
         previousState: VerseFlowUiState?,

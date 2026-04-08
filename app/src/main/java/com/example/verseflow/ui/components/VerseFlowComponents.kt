@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -70,6 +71,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
@@ -849,6 +851,93 @@ fun SongListItem(
             }
             trailingContent?.invoke()
         }
+    }
+}
+
+@Composable
+fun LiveBadge(
+    modifier: Modifier = Modifier,
+) {
+    val transition = rememberInfiniteTransition(label = "liveBadge")
+    val pulseScale by transition.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.35f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 950),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "livePulseScale",
+    )
+    val pulseAlpha by transition.animateFloat(
+        initialValue = 0.18f,
+        targetValue = 0.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 950),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "livePulseAlpha",
+    )
+    val dotAlpha by transition.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 650),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "liveDotAlpha",
+    )
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f))
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.22f),
+                shape = RoundedCornerShape(999.dp),
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .graphicsLayer {
+                        scaleX = pulseScale
+                        scaleY = pulseScale
+                    }
+                    .alpha(pulseAlpha)
+                    .background(
+                        color = MaterialTheme.colorScheme.secondary,
+                        shape = CircleShape,
+                    ),
+            )
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .alpha(dotAlpha)
+                    .background(
+                        color = MaterialTheme.colorScheme.secondary,
+                        shape = CircleShape,
+                    ),
+            )
+        }
+        Text(
+            text = "LIVE",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.secondary,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.8.sp,
+        )
+        Spacer(
+            modifier = Modifier
+                .width(12.dp)
+                .height(12.dp),
+        )
     }
 }
 
@@ -1652,11 +1741,7 @@ fun PlaybackQueueSheet(
                         shadowElevation = 0.dp,
                         trailingContent = {
                             if (song.id == currentSongId) {
-                                Text(
-                                    text = "LIVE",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.secondary,
-                                )
+                                LiveBadge()
                             }
                         },
                     )

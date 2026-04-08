@@ -55,13 +55,27 @@ class PlaybackSessionStore(
             put("isShuffled", session.isShuffled)
             put("lyricsDisplayMode", session.lyricsDisplayMode.name)
             put("queueSongIds", JSONArray().apply {
-                session.queueSongIds.forEach(::put)
+                session.queueSongIds.take(MAX_QUEUE_ITEMS).forEach { songId ->
+                    put(songId.take(MAX_VALUE_LENGTH))
+                }
             })
             put("queueSongMediaUris", JSONArray().apply {
-                session.queueSongMediaUris.forEach(::put)
+                session.queueSongMediaUris.take(MAX_QUEUE_ITEMS).forEach { mediaUri ->
+                    put(mediaUri.take(MAX_VALUE_LENGTH))
+                }
             })
+        }.toString()
+
+        val safePayload = payload.takeIf { it.length <= MAX_PAYLOAD_LENGTH } ?: run {
+            clear()
+            return
         }
-        preferences.edit().putString(KEY_SESSION, payload.toString()).apply()
+
+        runCatching {
+            preferences.edit().putString(KEY_SESSION, safePayload).apply()
+        }.onFailure {
+            clear()
+        }
     }
 
     fun clear() {
@@ -78,5 +92,8 @@ class PlaybackSessionStore(
 
     private companion object {
         const val KEY_SESSION = "playback_session"
+        const val MAX_QUEUE_ITEMS = 250
+        const val MAX_VALUE_LENGTH = 512
+        const val MAX_PAYLOAD_LENGTH = 48_000
     }
 }

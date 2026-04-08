@@ -6,9 +6,12 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -28,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,6 +42,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
@@ -93,7 +98,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -118,13 +125,19 @@ import java.awt.dnd.DropTargetDropEvent
 import java.awt.datatransfer.DataFlavor
 import java.net.URI
 import java.net.URL
+import java.net.URLEncoder
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.Duration
 import javax.swing.BorderFactory
 import javax.swing.JFileChooser
 import javax.swing.JLabel
@@ -134,6 +147,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import org.jetbrains.skia.Image as SkiaImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerMoveFilter
@@ -161,6 +175,8 @@ private val VerseFlowDesktopColors = darkColorScheme(
     onSurface = FrostWhite,
     onSurfaceVariant = MutedLavender,
 )
+
+private const val MIN_WIKIPEDIA_ARTIST_SCORE = 20
 
 @Suppress("UnusedParameter")
 private fun RoundedCornerShape(radius: Dp): Shape = RectangleShape
@@ -298,6 +314,33 @@ private data class DesktopTrackMenuModel(
     val onEditTrack: (DesktopTrack) -> Unit,
 )
 
+private data class DesktopArtistLookupUiState(
+    val artistName: String? = null,
+    val isLoading: Boolean = false,
+    val message: String? = null,
+    val isError: Boolean = false,
+)
+
+private data class DesktopArtistManualSearchUiState(
+    val artistName: String? = null,
+    val query: String = "",
+    val candidates: List<DesktopArtistLookupCandidate> = emptyList(),
+    val isLoading: Boolean = false,
+    val message: String? = null,
+)
+
+private data class DesktopFetchedArtistProfile(
+    val bio: String?,
+    val imageUrl: String?,
+    val sourcePageTitle: String,
+)
+
+private data class DesktopArtistLookupCandidate(
+    val pageTitle: String,
+    val snippet: String,
+    val score: Int,
+)
+
 private fun displayGenreLabel(genre: String): String =
     genre
         .trim()
@@ -367,6 +410,8 @@ fun VerseFlowDesktopApp() {
     var hiddenTrackPaths by remember { mutableStateOf(appStore.loadHiddenTrackPaths()) }
     var trackOverrides by remember { mutableStateOf(appStore.loadTrackOverrides()) }
     var artistProfileOverrides by remember { mutableStateOf(appStore.loadArtistProfileOverrides()) }
+    var artistLookupUiState by remember { mutableStateOf(DesktopArtistLookupUiState()) }
+    var artistManualSearchUiState by remember { mutableStateOf(DesktopArtistManualSearchUiState()) }
     var pendingPlaybackSession by remember { mutableStateOf(appStore.loadPlaybackSession()) }
     var queueTrackPaths by remember { mutableStateOf<List<String>>(emptyList()) }
     var queueLabel by remember { mutableStateOf("All Songs") }
@@ -426,11 +471,13 @@ fun VerseFlowDesktopApp() {
             )
         }
     }
-    val featuredArtists = remember(rankedArtists, artistSpotlightOrder, allArtists) {
-        val orderedArtists = artistSpotlightOrder
-            .mapNotNull { artistName -> allArtists.firstOrNull { it.name == artistName } }
-        (orderedArtists + rankedArtists.filterNot { ranked -> orderedArtists.any { it.name == ranked.name } })
-            .take(6)
+    val featuredArtists = remember(allArtists) {
+        allArtists
+            .sortedWith(
+                compareByDescending<DesktopArtistSummary> { it.trackCount }
+                    .thenBy { it.name.lowercase() },
+            )
+            .take(5)
     }
     val smartPlaylists = remember(tracks, recentTrackIds, playCounts) {
         buildDesktopSmartPlaylists(
@@ -835,6 +882,193 @@ fun VerseFlowDesktopApp() {
             artistProfileOverrides + (artistName to nextOverride)
         }
         appStore.saveArtistProfileOverrides(artistProfileOverrides)
+    }
+
+    fun importArtistProfile(
+        artistName: String,
+        artistTracks: List<DesktopTrack>,
+    ) {
+        artistLookupUiState = DesktopArtistLookupUiState(
+            artistName = artistName,
+            isLoading = true,
+            message = "Searching Wikipedia for $artistName...",
+            isError = false,
+        )
+        coroutineScope.launch {
+            runCatching {
+                val representativeTrack = artistTracks
+                    .sortedWith(
+                        compareByDescending<DesktopTrack> { it.artistCredits.size == 1 }
+                            .thenByDescending { it.title.length }
+                            .thenBy { it.title.lowercase() },
+                    )
+                    .firstOrNull()
+                val profile = fetchDesktopArtistProfileFromWikipedia(
+                    artistName = artistName,
+                    representativeTrack = representativeTrack,
+                )
+                val savedPhotoPath = profile.imageUrl?.let { imageUrl ->
+                    saveDesktopArtistReferenceImage(artistName, imageUrl)
+                }
+                val mergedAbout = profile.bio?.ifBlank { null } ?: artistProfileOverrides[artistName]?.about
+                val mergedPhotoPath = savedPhotoPath ?: artistProfileOverrides[artistName]?.photoPath
+                updateArtistProfile(
+                    artistName = artistName,
+                    photoPath = mergedPhotoPath,
+                    about = mergedAbout,
+                )
+                DesktopArtistLookupUiState(
+                    artistName = artistName,
+                    isLoading = false,
+                    message = buildString {
+                        append("Imported")
+                        if (profile.bio != null) append(" bio")
+                        if (profile.bio != null && savedPhotoPath != null) append(" and")
+                        if (savedPhotoPath != null) append(" photo")
+                        append(" from Wikipedia.")
+                    }.ifBlank { "Imported artist info from Wikipedia." },
+                    isError = false,
+                )
+            }.getOrElse { error ->
+                DesktopArtistLookupUiState(
+                    artistName = artistName,
+                    isLoading = false,
+                    message = error.message ?: "VerseFlow couldn't fetch artist info right now.",
+                    isError = true,
+                )
+            }.also { nextState ->
+                artistLookupUiState = nextState
+            }
+        }
+    }
+
+    fun openManualArtistSearch(
+        artistName: String,
+        artistTracks: List<DesktopTrack>,
+    ) {
+        val representativeTrack = artistTracks
+            .sortedWith(
+                compareByDescending<DesktopTrack> { it.artistCredits.size == 1 }
+                    .thenByDescending { it.title.length }
+                    .thenBy { it.title.lowercase() },
+            )
+            .firstOrNull()
+        val initialQuery = listOf(
+            artistName,
+            representativeTrack?.title.orEmpty(),
+            representativeTrack
+                ?.artistCredits
+                ?.filterNot { it.equals(artistName, ignoreCase = true) }
+                ?.firstOrNull()
+                .orEmpty(),
+        ).filter(String::isNotBlank).joinToString(" ")
+        artistManualSearchUiState = DesktopArtistManualSearchUiState(
+            artistName = artistName,
+            query = initialQuery,
+            isLoading = true,
+            message = "Searching Wikipedia...",
+        )
+        coroutineScope.launch {
+            val candidates = runCatching {
+                val client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build()
+                searchWikipediaCandidates(
+                    client = client,
+                    query = initialQuery,
+                    artistName = artistName,
+                    representativeTrack = representativeTrack,
+                )
+            }.getOrDefault(emptyList())
+            artistManualSearchUiState = artistManualSearchUiState.copy(
+                candidates = candidates,
+                isLoading = false,
+                message = if (candidates.isEmpty()) "No Wikipedia results found for that search." else null,
+            )
+        }
+    }
+
+    fun runManualArtistSearch(
+        artistName: String,
+        query: String,
+        artistTracks: List<DesktopTrack>,
+    ) {
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank()) return
+        val representativeTrack = artistTracks.firstOrNull()
+        artistManualSearchUiState = artistManualSearchUiState.copy(
+            artistName = artistName,
+            query = normalizedQuery,
+            isLoading = true,
+            message = "Searching Wikipedia...",
+            candidates = emptyList(),
+        )
+        coroutineScope.launch {
+            val candidates = runCatching {
+                val client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build()
+                searchWikipediaCandidates(
+                    client = client,
+                    query = normalizedQuery,
+                    artistName = artistName,
+                    representativeTrack = representativeTrack,
+                )
+            }.getOrDefault(emptyList())
+            artistManualSearchUiState = artistManualSearchUiState.copy(
+                candidates = candidates,
+                isLoading = false,
+                message = if (candidates.isEmpty()) "No Wikipedia results found for that search." else null,
+            )
+        }
+    }
+
+    fun importArtistProfileFromManualCandidate(
+        artistName: String,
+        pageTitle: String,
+    ) {
+        artistLookupUiState = DesktopArtistLookupUiState(
+            artistName = artistName,
+            isLoading = true,
+            message = "Importing artist info from $pageTitle...",
+            isError = false,
+        )
+        coroutineScope.launch {
+            runCatching {
+                val client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build()
+                val payload = fetchWikipediaSummaryPayload(client, pageTitle)
+                val profile = DesktopFetchedArtistProfile(
+                    bio = payload.optString("extract").substringBefore("\n").trim().ifBlank { null },
+                    imageUrl = payload.optJSONObject("originalimage")?.optString("source")?.ifBlank { null }
+                        ?: payload.optJSONObject("thumbnail")?.optString("source")?.ifBlank { null },
+                    sourcePageTitle = pageTitle,
+                )
+                val savedPhotoPath = profile.imageUrl?.let { saveDesktopArtistReferenceImage(artistName, it) }
+                updateArtistProfile(
+                    artistName = artistName,
+                    photoPath = savedPhotoPath ?: artistProfileOverrides[artistName]?.photoPath,
+                    about = profile.bio ?: artistProfileOverrides[artistName]?.about,
+                )
+                artistManualSearchUiState = DesktopArtistManualSearchUiState()
+                DesktopArtistLookupUiState(
+                    artistName = artistName,
+                    isLoading = false,
+                    message = "Imported artist info from $pageTitle.",
+                    isError = false,
+                )
+            }.getOrElse { error ->
+                DesktopArtistLookupUiState(
+                    artistName = artistName,
+                    isLoading = false,
+                    message = error.message ?: "VerseFlow couldn't import that Wikipedia page.",
+                    isError = true,
+                )
+            }.also { nextState ->
+                artistLookupUiState = nextState
+            }
+        }
     }
 
     fun persistUserPlaylists(nextPlaylists: List<DesktopUserPlaylist>) {
@@ -1667,6 +1901,8 @@ fun VerseFlowDesktopApp() {
                                 DesktopSection.ArtistDetail -> DesktopArtistDetail(
                                     artist = selectedArtist,
                                     artistProfileOverride = selectedArtistProfileOverride,
+                                    artistLookupUiState = artistLookupUiState,
+                                    artistManualSearchUiState = artistManualSearchUiState,
                                     tracks = selectedArtist?.let { artist ->
                                         tracks.filter { artist.name in it.artistCredits }
                                     }.orEmpty(),
@@ -1720,10 +1956,43 @@ fun VerseFlowDesktopApp() {
                                     },
                                     onPlayTrack = { track ->
                                         playTrack(track, queue = tracks.filter { selectedArtist?.name in it.artistCredits }, label = selectedArtist?.name ?: "Artist")
-                                        section = DesktopSection.NowPlaying
                                     },
                                     onUpdateAbout = { artistName, about ->
                                         updateArtistProfile(artistName = artistName, about = about)
+                                    },
+                                    onImportArtistProfile = { artistName ->
+                                        importArtistProfile(
+                                            artistName = artistName,
+                                            artistTracks = tracks.filter { artistName in it.artistCredits },
+                                        )
+                                    },
+                                    onOpenManualArtistSearch = { artistName ->
+                                        openManualArtistSearch(
+                                            artistName = artistName,
+                                            artistTracks = tracks.filter { artistName in it.artistCredits },
+                                        )
+                                    },
+                                    onManualArtistSearchQueryChange = { artistName, query ->
+                                        artistManualSearchUiState = artistManualSearchUiState.copy(
+                                            artistName = artistName,
+                                            query = query,
+                                        )
+                                    },
+                                    onRunManualArtistSearch = { artistName, query ->
+                                        runManualArtistSearch(
+                                            artistName = artistName,
+                                            query = query,
+                                            artistTracks = tracks.filter { artistName in it.artistCredits },
+                                        )
+                                    },
+                                    onImportArtistProfileFromCandidate = { artistName, pageTitle ->
+                                        importArtistProfileFromManualCandidate(
+                                            artistName = artistName,
+                                            pageTitle = pageTitle,
+                                        )
+                                    },
+                                    onDismissManualArtistSearch = {
+                                        artistManualSearchUiState = DesktopArtistManualSearchUiState()
                                     },
                                     onChooseArtistPhoto = { artistName ->
                                         chooseDesktopArtistImageFile()?.let { photoPath ->
@@ -2268,18 +2537,10 @@ private fun DesktopHome(
     val homeCardSpacing = 2.dp
     val isHomeChromeCollapsed = homeListState.firstVisibleItemIndex > 0 || homeListState.firstVisibleItemScrollOffset > 8
     var weatherSummary by remember { mutableStateOf<String?>(null) }
-    var showArtistSpotlightEditor by remember { mutableStateOf(false) }
-    var spotlightDraft by remember { mutableStateOf<List<String>>(emptyList()) }
     val continueListeningTracks = remember(currentTrack, recentTracks) {
         (listOfNotNull(currentTrack) + recentTracks)
             .distinctBy(DesktopTrack::id)
             .take(8)
-    }
-    val orderedArtists = remember(artists, artistSpotlightOrder) {
-        orderDesktopArtistSpotlights(
-            artists = artists,
-            artistSpotlightOrder = artistSpotlightOrder,
-        )
     }
     val moodRailItems = remember(tracks, recentTracks, genres, currentTrack) {
         buildDesktopMoodRail(
@@ -2499,18 +2760,11 @@ private fun DesktopHome(
                 }
                 if (artists.isNotEmpty()) {
                     item {
-                        HomeSectionHeader(
-                            title = "Artists in rotation",
-                            actionLabel = "Reorder",
-                            onAction = {
-                                spotlightDraft = orderedArtists.map(DesktopArtistSummary::name)
-                                showArtistSpotlightEditor = true
-                            },
-                        )
+                        SectionLabel("Favourite artists")
                     }
                     item {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(homeCardSpacing)) {
-                            items(orderedArtists) { artist ->
+                            items(artists) { artist ->
                                 DesktopFeatureCard(
                                     title = artist.name,
                                     subtitle = displayGenreLabel(artist.genres.firstOrNull().orEmpty()),
@@ -2526,73 +2780,6 @@ private fun DesktopHome(
                 }
             }
         }
-    }
-
-    if (showArtistSpotlightEditor) {
-        AlertDialog(
-            onDismissRequest = { showArtistSpotlightEditor = false },
-            title = { Text("Reorder artist spotlight", fontFamily = FontFamily.SansSerif) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    spotlightDraft.forEachIndexed { index, artistName ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = artistName,
-                                color = FrostWhite,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontFamily = FontFamily.SansSerif,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(
-                                    onClick = {
-                                        if (index > 0) {
-                                            spotlightDraft = spotlightDraft.toMutableList().also { draft ->
-                                                val item = draft.removeAt(index)
-                                                draft.add(index - 1, item)
-                                            }
-                                        }
-                                    },
-                                ) {
-                                    Text("Up", fontFamily = FontFamily.SansSerif)
-                                }
-                                TextButton(
-                                    onClick = {
-                                        if (index < spotlightDraft.lastIndex) {
-                                            spotlightDraft = spotlightDraft.toMutableList().also { draft ->
-                                                val item = draft.removeAt(index)
-                                                draft.add(index + 1, item)
-                                            }
-                                        }
-                                    },
-                                ) {
-                                    Text("Down", fontFamily = FontFamily.SansSerif)
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onArtistSpotlightOrderChange(spotlightDraft)
-                        showArtistSpotlightEditor = false
-                    },
-                ) {
-                    Text("Save", fontFamily = FontFamily.SansSerif)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showArtistSpotlightEditor = false }) {
-                    Text("Cancel", fontFamily = FontFamily.SansSerif)
-                }
-            },
-        )
     }
 }
 
@@ -4202,6 +4389,8 @@ private fun DesktopAlbumDetail(
 private fun DesktopArtistDetail(
     artist: DesktopArtistSummary?,
     artistProfileOverride: DesktopArtistProfileOverride?,
+    artistLookupUiState: DesktopArtistLookupUiState,
+    artistManualSearchUiState: DesktopArtistManualSearchUiState,
     tracks: List<DesktopTrack>,
     albums: List<DesktopAlbumSummary>,
     relatedArtists: List<DesktopArtistSummary>,
@@ -4222,6 +4411,12 @@ private fun DesktopArtistDetail(
     onPlayArtist: (List<DesktopTrack>) -> Unit,
     onPlayTrack: (DesktopTrack) -> Unit,
     onUpdateAbout: (String, String) -> Unit,
+    onImportArtistProfile: (String) -> Unit,
+    onOpenManualArtistSearch: (String) -> Unit,
+    onManualArtistSearchQueryChange: (String, String) -> Unit,
+    onRunManualArtistSearch: (String, String) -> Unit,
+    onImportArtistProfileFromCandidate: (String, String) -> Unit,
+    onDismissManualArtistSearch: () -> Unit,
     onChooseArtistPhoto: (String) -> Unit,
     onClearArtistPhoto: (String) -> Unit,
     trackMenu: DesktopTrackMenuModel,
@@ -4237,6 +4432,11 @@ private fun DesktopArtistDetail(
     val artistContentState = rememberLazyListState()
     val artistAbout = artistProfileOverride?.about.orEmpty()
     var selectedTab by remember(artist.name) { mutableStateOf(DesktopArtistDetailTab.TopTracks) }
+    val artistLookupMessage = artistLookupUiState
+        .takeIf { it.artistName == artist.name }
+        ?.message
+    val manualSearchState = artistManualSearchUiState.takeIf { it.artistName == artist.name }
+    val isArtistLookupRunning = artistLookupUiState.artistName == artist.name && artistLookupUiState.isLoading
     val featureTracks = remember(artist.name, tracks) {
         tracks.filter { track ->
             artist.name in track.artistCredits &&
@@ -4320,10 +4520,25 @@ private fun DesktopArtistDetail(
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         PrimaryChip(label = "Play artist", onClick = { onPlayArtist(tracks) })
+                        SecondaryChip(
+                            label = if (isArtistLookupRunning) "Searching..." else "Search artist info",
+                            onClick = { onImportArtistProfile(artist.name) },
+                        )
+                        SecondaryChip(
+                            label = "Manual search",
+                            onClick = { onOpenManualArtistSearch(artist.name) },
+                        )
                         SecondaryChip(label = "Change photo", onClick = { onChooseArtistPhoto(artist.name) })
                         if (artist.artworkBytes != null || !artistProfileOverride?.photoPath.isNullOrBlank()) {
                             SecondaryChip(label = "Clear photo", onClick = { onClearArtistPhoto(artist.name) })
                         }
+                    }
+                    artistLookupMessage?.let { message ->
+                        Text(
+                            text = message,
+                            color = if (artistLookupUiState.isError) Color(0xFFFF8D8D) else MutedLavender,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
                 }
             }
@@ -4427,6 +4642,32 @@ private fun DesktopArtistDetail(
                                 item {
                                     SectionLabel("About")
                                 }
+                                if (artistAbout.isNotBlank()) {
+                                    item {
+                                        Surface(
+                                            color = Color(0xFF101520),
+                                            shape = RoundedCornerShape(22.dp),
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp),
+                                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                            ) {
+                                                Text(
+                                                    text = "Artist bio",
+                                                    color = FrostWhite,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                )
+                                                Text(
+                                                    text = artistAbout,
+                                                    color = MutedLavender,
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                                 item {
                                     OutlinedTextField(
                                         value = artistAbout,
@@ -4434,6 +4675,15 @@ private fun DesktopArtistDetail(
                                         modifier = Modifier.fillMaxWidth().height(132.dp),
                                         label = { Text("Artist notes") },
                                     )
+                                }
+                                if (artistLookupMessage != null) {
+                                    item {
+                                        Text(
+                                            text = artistLookupMessage,
+                                            color = if (artistLookupUiState.isError) Color(0xFFFF8D8D) else MutedLavender,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
+                                    }
                                 }
                                 if (relatedArtists.isNotEmpty()) {
                                     item {
@@ -4475,6 +4725,82 @@ private fun DesktopArtistDetail(
                 }
             }
         }
+    }
+
+    if (manualSearchState != null) {
+        AlertDialog(
+            onDismissRequest = onDismissManualArtistSearch,
+            title = { Text("Manual artist search", fontFamily = FontFamily.SansSerif) },
+            text = {
+                val manualSearchScrollState = rememberScrollState()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 560.dp)
+                        .verticalScroll(manualSearchScrollState),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedTextField(
+                        value = manualSearchState.query,
+                        onValueChange = { onManualArtistSearchQueryChange(artist.name, it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Search Wikipedia") },
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PrimaryChip(
+                            label = if (manualSearchState.isLoading) "Searching..." else "Search",
+                            onClick = { onRunManualArtistSearch(artist.name, manualSearchState.query) },
+                        )
+                    }
+                    manualSearchState.message?.let { message ->
+                        Text(
+                            text = message,
+                            color = MutedLavender,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        manualSearchState.candidates.forEach { candidate ->
+                            Surface(
+                                color = Color(0xFF101520),
+                                shape = RoundedCornerShape(18.dp),
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        text = candidate.pageTitle,
+                                        color = FrostWhite,
+                                        style = MaterialTheme.typography.titleMedium,
+                                    )
+                                    if (candidate.snippet.isNotBlank()) {
+                                        Text(
+                                            text = candidate.snippet,
+                                            color = MutedLavender,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
+                                    }
+                                    SecondaryChip(
+                                        label = "Use this result",
+                                        onClick = {
+                                            onImportArtistProfileFromCandidate(artist.name, candidate.pageTitle)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onDismissManualArtistSearch) {
+                    Text("Close", fontFamily = FontFamily.SansSerif)
+                }
+            },
+        )
     }
 }
 
@@ -5635,28 +5961,11 @@ private fun DesktopFeatureCard(
                             .align(Alignment.TopEnd)
                             .padding(12.dp),
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            badgeIcon?.let { icon ->
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = null,
-                                    tint = FrostWhite,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                            }
-                            badgeText?.let { text ->
-                                Text(
-                                    text = text,
-                                    color = FrostWhite,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontFamily = FontFamily.SansSerif,
-                                )
-                            }
-                        }
+                        DesktopBadgeContent(
+                            badgeText = badgeText,
+                            badgeIcon = badgeIcon,
+                            badgeHighlighted = badgeHighlighted,
+                        )
                     }
                 }
             }
@@ -5668,6 +5977,86 @@ private fun DesktopFeatureCard(
                 Text(subtitle, color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(supporting, color = MutedLavender, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+        }
+    }
+}
+
+@Composable
+private fun DesktopBadgeContent(
+    badgeText: String?,
+    badgeIcon: androidx.compose.ui.graphics.vector.ImageVector?,
+    badgeHighlighted: Boolean,
+) {
+    val isLiveBadge = badgeHighlighted && badgeText == "LIVE" && badgeIcon == null
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "desktopLiveBadge")
+    val pulseScale by transition.animateFloat(
+        initialValue = 0.92f,
+        targetValue = 1.45f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "desktopLivePulseScale",
+    )
+    val pulseAlpha by transition.animateFloat(
+        initialValue = 0.18f,
+        targetValue = 0.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "desktopLivePulseAlpha",
+    )
+    val dotAlpha by transition.animateFloat(
+        initialValue = 0.65f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 560),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "desktopLiveDotAlpha",
+    )
+
+    Row(
+        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (isLiveBadge) {
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .graphicsLayer {
+                            scaleX = pulseScale
+                            scaleY = pulseScale
+                        }
+                        .alpha(pulseAlpha)
+                        .background(FrostWhite, CircleShape),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .alpha(dotAlpha)
+                        .background(FrostWhite, CircleShape),
+                )
+            }
+        }
+        badgeIcon?.let { icon ->
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = FrostWhite,
+                modifier = Modifier.size(14.dp),
+            )
+        }
+        badgeText?.let { text ->
+            Text(
+                text = text,
+                color = FrostWhite,
+                style = MaterialTheme.typography.labelMedium,
+                fontFamily = FontFamily.SansSerif,
+            )
         }
     }
 }
@@ -6994,6 +7383,340 @@ private fun loadDesktopImageBytes(path: String?): ByteArray? =
                 }
             }.getOrNull()
         }
+
+private suspend fun fetchDesktopArtistProfileFromWikipedia(
+    artistName: String,
+    representativeTrack: DesktopTrack?,
+): DesktopFetchedArtistProfile =
+    withContext(Dispatchers.IO) {
+        val client = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build()
+        val exactTitleCandidates = buildList {
+            add(artistName.trim())
+            add("$artistName (singer)")
+            add("$artistName (musician)")
+            add("$artistName (rapper)")
+            add("$artistName (band)")
+        }.distinct()
+        val exactMatch = exactTitleCandidates.firstNotNullOfOrNull { candidateTitle ->
+            runCatching { fetchWikipediaSummaryPayload(client, candidateTitle) }
+                .getOrNull()
+                ?.takeIf { payload ->
+                    isAcceptableArtistSummary(
+                        pageTitle = candidateTitle,
+                        summaryPayload = payload,
+                        artistName = artistName,
+                    )
+                }
+                ?.let { payload -> candidateTitle to payload }
+        }
+        val resolved = exactMatch ?: run {
+            val candidate = searchWikipediaArtistCandidate(
+                client = client,
+                artistName = artistName,
+                representativeTrack = representativeTrack,
+            )
+            val pageTitle = candidate?.pageTitle ?: error("No Wikipedia result found for $artistName.")
+            val payload = fetchWikipediaSummaryPayload(client, pageTitle)
+            if (!isAcceptableArtistSummary(pageTitle, payload, artistName)) {
+                error("VerseFlow found a related Wikipedia page, but not a reliable artist biography for $artistName.")
+            }
+            pageTitle to payload
+        }
+        val pageTitle = resolved.first
+        val summaryPayload = resolved.second
+        val bio = summaryPayload.optString("extract")
+            .substringBefore("\n")
+            .trim()
+            .takeIf(String::isNotEmpty)
+        val imageUrl = summaryPayload.optJSONObject("originalimage")
+            ?.optString("source")
+            ?.takeIf(String::isNotBlank)
+            ?: summaryPayload.optJSONObject("thumbnail")
+                ?.optString("source")
+                ?.takeIf(String::isNotBlank)
+
+        if (bio == null && imageUrl == null) {
+            error("Wikipedia found a page, but it didn't return a usable bio or photo.")
+        }
+
+        DesktopFetchedArtistProfile(
+            bio = bio,
+            imageUrl = imageUrl,
+            sourcePageTitle = pageTitle,
+        )
+    }
+
+private fun searchWikipediaArtistCandidate(
+    client: HttpClient,
+    artistName: String,
+    representativeTrack: DesktopTrack?,
+): DesktopArtistLookupCandidate? {
+    val queries = buildList {
+        val collaborators = representativeTrack
+            ?.artistCredits
+            ?.filterNot { it.equals(artistName, ignoreCase = true) }
+            ?.take(2)
+            .orEmpty()
+        add(
+            listOf(
+                artistName.trim(),
+                representativeTrack?.title?.trim().orEmpty(),
+                collaborators.joinToString(" "),
+                "singer",
+            ).filter(String::isNotBlank).joinToString(" "),
+        )
+        add(
+            listOf(
+                artistName.trim(),
+                representativeTrack?.album?.trim().orEmpty(),
+                "musician",
+            ).filter(String::isNotBlank).joinToString(" "),
+        )
+        add(
+            listOf(
+                artistName.trim(),
+                "musician",
+            ).filter(String::isNotBlank).joinToString(" "),
+        )
+    }.distinct()
+
+    return queries
+        .flatMap { query -> searchWikipediaCandidates(client, query, artistName, representativeTrack) }
+        .filter { candidate -> candidate.score > MIN_WIKIPEDIA_ARTIST_SCORE }
+        .groupBy { it.pageTitle }
+        .map { (_, candidates) ->
+            candidates.maxByOrNull(DesktopArtistLookupCandidate::score)!!
+        }
+        .maxWithOrNull(
+            compareByDescending<DesktopArtistLookupCandidate> { it.score }
+                .thenBy { it.pageTitle.lowercase() },
+        )
+}
+
+private fun searchWikipediaCandidates(
+    client: HttpClient,
+    query: String,
+    artistName: String,
+    representativeTrack: DesktopTrack?,
+): List<DesktopArtistLookupCandidate> {
+    val searchUri = URI(
+        "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=5&srsearch=" +
+            URLEncoder.encode(query, Charsets.UTF_8),
+    )
+    val searchRequest = HttpRequest.newBuilder(searchUri)
+        .timeout(Duration.ofSeconds(12))
+        .header("User-Agent", "VerseFlowDesktop/1.0")
+        .GET()
+        .build()
+    val searchResponse = client.send(searchRequest, HttpResponse.BodyHandlers.ofString())
+    if (searchResponse.statusCode() !in 200..299) {
+        error("Wikipedia search failed with HTTP ${searchResponse.statusCode()}.")
+    }
+
+    val searchPayload = JSONObject(searchResponse.body())
+    val results = searchPayload.optJSONObject("query")?.optJSONArray("search") ?: return emptyList()
+    return (0 until results.length())
+        .mapNotNull { index ->
+            val item = results.optJSONObject(index) ?: return@mapNotNull null
+            val pageTitle = item.optString("title").trim().takeIf(String::isNotEmpty) ?: return@mapNotNull null
+            val snippet = item.optString("snippet").replace(Regex("<[^>]+>"), " ").trim()
+            DesktopArtistLookupCandidate(
+                pageTitle = pageTitle,
+                snippet = snippet,
+                score = scoreWikipediaArtistCandidate(pageTitle, snippet, artistName, representativeTrack),
+            )
+        }
+}
+
+private fun scoreWikipediaArtistCandidate(
+    pageTitle: String,
+    snippet: String,
+    artistName: String,
+    representativeTrack: DesktopTrack?,
+): Int {
+    val normalizedTitle = pageTitle.lowercase()
+    val normalizedSnippet = snippet.lowercase()
+    val normalizedArtistName = artistName.lowercase()
+    val normalizedSongTitle = representativeTrack?.title?.lowercase().orEmpty()
+    val normalizedAlbum = representativeTrack?.album?.lowercase().orEmpty()
+    val collaborators = representativeTrack
+        ?.artistCredits
+        ?.filterNot { it.equals(artistName, ignoreCase = true) }
+        ?.map(String::lowercase)
+        .orEmpty()
+
+    var score = 0
+    if (normalizedTitle == normalizedArtistName) score += 60
+    if (normalizedTitle == "$normalizedArtistName (singer)") score += 50
+    if (normalizedTitle == "$normalizedArtistName (musician)") score += 50
+    if (normalizedTitle == "$normalizedArtistName (rapper)") score += 50
+    if (normalizedTitle == "$normalizedArtistName (band)") score += 40
+    if (normalizedTitle.contains(normalizedArtistName)) score += 25
+    if (normalizedSnippet.contains(normalizedArtistName)) score += 18
+    if (normalizedSnippet.contains("singer")) score += 20
+    if (normalizedSnippet.contains("musician")) score += 20
+    if (normalizedSnippet.contains("rapper")) score += 18
+    if (normalizedSnippet.contains("dj")) score += 16
+    if (normalizedSnippet.contains("record producer")) score += 14
+    if (normalizedSnippet.contains("songwriter")) score += 14
+    if (normalizedSongTitle.isNotBlank() && normalizedSnippet.contains(normalizedSongTitle)) score += 26
+    if (normalizedAlbum.isNotBlank() && normalizedSnippet.contains(normalizedAlbum)) score += 10
+    if (collaborators.any { collaborator -> collaborator.isNotBlank() && normalizedSnippet.contains(collaborator) }) {
+        score += 14
+    }
+    if (normalizedTitle.startsWith("list of")) score -= 120
+    if (normalizedTitle.contains("discography")) score -= 120
+    if (normalizedTitle.contains("album")) score -= 90
+    if (normalizedTitle.contains("song")) score -= 80
+    if (normalizedTitle.contains("soundtrack")) score -= 70
+    if (normalizedTitle.contains("city")) score -= 45
+    if (normalizedSnippet.contains("city")) score -= 35
+    if (normalizedSnippet.contains("district")) score -= 25
+    if (normalizedSnippet.contains("place")) score -= 20
+    if (normalizedSnippet.contains("company")) score -= 20
+    if (normalizedSnippet.contains("film")) score -= 15
+    return score
+}
+
+private fun isAcceptableArtistSummary(
+    pageTitle: String,
+    summaryPayload: JSONObject,
+    artistName: String,
+): Boolean {
+    val normalizedTitle = pageTitle.lowercase()
+    val normalizedArtistName = artistName.lowercase()
+    val description = summaryPayload.optString("description").lowercase()
+    val extract = summaryPayload.optString("extract").lowercase()
+    val combined = "$description $extract"
+
+    if (!normalizedTitle.contains(normalizedArtistName)) return false
+    if (
+        normalizedTitle.startsWith("list of") ||
+        normalizedTitle.contains("discography") ||
+        normalizedTitle.contains("album") ||
+        normalizedTitle.contains("song") ||
+        normalizedTitle.contains("soundtrack")
+    ) {
+        return false
+    }
+
+    val hasPersonSignals = listOf(
+        "singer",
+        "musician",
+        "rapper",
+        "songwriter",
+        "dj",
+        "record producer",
+        "band",
+    ).any(combined::contains)
+    if (!hasPersonSignals) return false
+
+    val hasBadSignals = listOf(
+        "list of",
+        "album by",
+        "studio album",
+        "song by",
+        "city",
+        "district",
+        "company",
+    ).any(combined::contains)
+    return !hasBadSignals
+}
+
+private fun fetchWikipediaSummaryPayload(
+    client: HttpClient,
+    pageTitle: String,
+): JSONObject {
+    val restPathTitle = pageTitle
+        .replace(" ", "_")
+        .split('/')
+        .joinToString("/") { segment ->
+            URLEncoder.encode(segment, Charsets.UTF_8).replace("+", "%20")
+        }
+    val summaryUri = URI("https://en.wikipedia.org/api/rest_v1/page/summary/$restPathTitle")
+    val summaryRequest = HttpRequest.newBuilder(summaryUri)
+        .timeout(Duration.ofSeconds(12))
+        .header("User-Agent", "VerseFlowDesktop/1.0")
+        .GET()
+        .build()
+    val summaryResponse = client.send(summaryRequest, HttpResponse.BodyHandlers.ofString())
+    if (summaryResponse.statusCode() in 200..299) {
+        return JSONObject(summaryResponse.body())
+    }
+
+    val fallbackUri = URI(
+        "https://en.wikipedia.org/w/api.php?action=query&prop=extracts|pageimages&format=json&exintro=1&explaintext=1&piprop=original&titles=" +
+            URLEncoder.encode(pageTitle, Charsets.UTF_8),
+    )
+    val fallbackRequest = HttpRequest.newBuilder(fallbackUri)
+        .timeout(Duration.ofSeconds(12))
+        .header("User-Agent", "VerseFlowDesktop/1.0")
+        .GET()
+        .build()
+    val fallbackResponse = client.send(fallbackRequest, HttpResponse.BodyHandlers.ofString())
+    if (fallbackResponse.statusCode() !in 200..299) {
+        error("Wikipedia summary failed with HTTP ${summaryResponse.statusCode()}.")
+    }
+
+    val payload = JSONObject(fallbackResponse.body())
+        .optJSONObject("query")
+        ?.optJSONObject("pages")
+        ?: error("Wikipedia summary failed with HTTP ${summaryResponse.statusCode()}.")
+    val page = payload.keys().asSequence()
+        .mapNotNull(payload::optJSONObject)
+        .firstOrNull()
+        ?: error("Wikipedia summary failed with HTTP ${summaryResponse.statusCode()}.")
+
+    val extract = page.optString("extract").trim()
+    val originalImage = page.optJSONObject("original")?.optString("source")
+
+    return JSONObject().apply {
+        put("extract", extract)
+        if (!originalImage.isNullOrBlank()) {
+            put(
+                "originalimage",
+                JSONObject().put("source", originalImage),
+            )
+        }
+    }
+}
+
+private suspend fun saveDesktopArtistReferenceImage(
+    artistName: String,
+    imageUrl: String,
+): String? = withContext(Dispatchers.IO) {
+    val client = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .build()
+    val request = HttpRequest.newBuilder(URI(imageUrl))
+        .timeout(Duration.ofSeconds(15))
+        .header("User-Agent", "VerseFlowDesktop/1.0")
+        .GET()
+        .build()
+    val response = client.send(request, HttpResponse.BodyHandlers.ofByteArray())
+    if (response.statusCode() !in 200..299) return@withContext null
+    val bytes = response.body()
+    if (bytes.isEmpty()) return@withContext null
+
+    val appDirectory = Path.of(System.getProperty("user.home"), ".verseflow", "artist-images")
+    Files.createDirectories(appDirectory)
+    val fileExtension = imageUrl
+        .substringAfterLast('.', "")
+        .substringBefore('?')
+        .lowercase()
+        .takeIf { it in setOf("png", "jpg", "jpeg", "webp") }
+        ?: "jpg"
+    val fileName = artistName
+        .lowercase()
+        .replace(Regex("""[^a-z0-9]+"""), "-")
+        .trim('-')
+        .ifBlank { "artist" } + ".$fileExtension"
+    val outputPath = appDirectory.resolve(fileName)
+    Files.write(outputPath, bytes)
+    outputPath.toString()
+}
 
 private fun openLyricsWebSearch(title: String, artist: String) {
     val query = listOf(title.trim(), artist.trim(), "lyrics")
