@@ -14,9 +14,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
@@ -24,6 +27,7 @@ import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Settings
@@ -39,6 +43,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -52,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -61,7 +67,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.verseflow.ui.components.ArtworkReactiveBackdrop
+import com.example.verseflow.ui.components.GlassPanel
 import com.example.verseflow.ui.components.MiniPlayerBar
+import com.example.verseflow.ui.components.VerseFilterChip
+import com.example.verseflow.ui.car.rememberIsCarLandscapeMode
 import com.example.verseflow.ui.navigation.VerseFlowDestination
 import com.example.verseflow.ui.navigation.VerseFlowNavHost
 import com.example.verseflow.ui.theme.VerseFlowTheme
@@ -108,9 +117,11 @@ fun VerseFlowApp() {
     val songActionUiState = viewModel.songActionUiState
     val currentSong = uiState.playback.currentSong
     val activePalette = currentSong?.palette ?: uiState.featuredAlbums.firstOrNull()?.palette
+    val isCarLandscapeMode = rememberIsCarLandscapeMode()
     val topLevelRoutes = remember {
         setOf(
             VerseFlowDestination.Home.route,
+            VerseFlowDestination.PlayHistory.route,
             VerseFlowDestination.Library.route,
             VerseFlowDestination.PlayQueue.route,
             VerseFlowDestination.Search.route,
@@ -328,6 +339,13 @@ fun VerseFlowApp() {
                     navController.navigateToDrawerDestination(VerseFlowDestination.Home.route)
                 },
                 DrawerDestination(
+                    label = "Play History",
+                    icon = Icons.Rounded.History,
+                    isSelected = currentRoute == VerseFlowDestination.PlayHistory.route,
+                ) {
+                    navController.navigateToDrawerDestination(VerseFlowDestination.PlayHistory.route)
+                },
+                DrawerDestination(
                     label = "Play Queue",
                     icon = Icons.AutoMirrored.Rounded.QueueMusic,
                     isSelected = currentRoute == VerseFlowDestination.PlayQueue.route,
@@ -494,6 +512,18 @@ fun VerseFlowApp() {
                         },
                         modifier = Modifier.padding(innerPadding),
                     )
+                    if (isCarLandscapeMode && currentRoute in topLevelRoutes) {
+                        CarModeTopBar(
+                            currentRoute = currentRoute,
+                            onNavigate = { route ->
+                                navController.navigateToDrawerDestination(route)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .padding(horizontal = 18.dp, vertical = 14.dp),
+                        )
+                    }
                 }
             }
         }
@@ -513,6 +543,67 @@ private fun androidx.navigation.NavHostController.navigateToDrawerDestination(ro
         restoreState = true
         popUpTo(VerseFlowDestination.Home.route) {
             saveState = true
+        }
+    }
+}
+
+@Composable
+private fun CarModeTopBar(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val carRoutes = listOf(
+        VerseFlowDestination.Home.route to "Home",
+        VerseFlowDestination.PlayHistory.route to "History",
+        VerseFlowDestination.Library.route to "Library",
+        VerseFlowDestination.PlayQueue.route to "Queue",
+        VerseFlowDestination.Search.route to "Search",
+        VerseFlowDestination.Settings.route to "Settings",
+    )
+    GlassPanel(
+        modifier = modifier,
+        surfaceAlpha = 0.68f,
+        surfaceVariantAlpha = 0.28f,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            carRoutes.forEach { (route, label) ->
+                VerseFilterChip(
+                    label = label,
+                    selected = currentRoute == route,
+                    onClick = { onNavigate(route) },
+                )
+            }
+        }
+    }
+}
+
+@Preview(
+    name = "Car Top Bar",
+    widthDp = 1024,
+    heightDp = 140,
+    showBackground = true,
+    backgroundColor = 0xFF000000,
+)
+@Composable
+private fun CarModeTopBarPreview() {
+    VerseFlowTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
+            CarModeTopBar(
+                currentRoute = VerseFlowDestination.Library.route,
+                onNavigate = {},
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+            )
         }
     }
 }

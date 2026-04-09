@@ -22,6 +22,9 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.example.verseflow.data.DeviceAudioCatalog
 import com.example.verseflow.data.DeviceAudioStoreLoader
+import com.example.verseflow.data.ArtistInfoImportRepository
+import com.example.verseflow.data.ArtistProfileOverride
+import com.example.verseflow.data.ArtistProfileOverrideStore
 import com.example.verseflow.data.LibraryCustomizationStore
 import com.example.verseflow.data.LrcLibLyricsRepository
 import com.example.verseflow.data.LyricsCacheStore
@@ -30,13 +33,18 @@ import com.example.verseflow.data.LyricsLookupResult
 import com.example.verseflow.data.MockMusicRepository
 import com.example.verseflow.data.MusicRepository
 import com.example.verseflow.data.PlaybackSessionStore
+import com.example.verseflow.data.PlayHistoryStore
 import com.example.verseflow.data.SavedPlaybackSession
 import com.example.verseflow.data.SongMetadataOverride
 import com.example.verseflow.data.UserPreferencesStore
+import com.example.verseflow.data.buildArtistCredits
 import com.example.verseflow.data.preferredArtistQuery
 import com.example.verseflow.data.preferredTitleQuery
+import com.example.verseflow.data.splitArtistCredits
 import com.example.verseflow.model.Album
 import com.example.verseflow.model.Artist
+import com.example.verseflow.model.ArtistLookupUiState
+import com.example.verseflow.model.ArtistSearchCandidate
 import com.example.verseflow.model.LibraryFilter
 import com.example.verseflow.model.LibrarySort
 import com.example.verseflow.model.LibraryTab
@@ -44,8 +52,10 @@ import com.example.verseflow.model.LyricsLoadState
 import com.example.verseflow.model.LyricsDisplayMode
 import com.example.verseflow.model.LyricsSearchCandidate
 import com.example.verseflow.model.ManualLyricsSearchUiState
+import com.example.verseflow.model.ManualArtistSearchUiState
 import com.example.verseflow.model.MusicCatalogSource
 import com.example.verseflow.model.PlaybackUiState
+import com.example.verseflow.model.PlayHistoryEntry
 import com.example.verseflow.model.Playlist
 import com.example.verseflow.model.RepeatMode
 import com.example.verseflow.model.Song
@@ -55,9 +65,11 @@ import com.example.verseflow.model.UserSettings
 import com.example.verseflow.model.VerseFlowUiState
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.absoluteValue
 
 data class SongActionUiState(
@@ -90,6 +102,9 @@ class VerseFlowViewModel(
     private val playbackSessionStore = PlaybackSessionStore(application.applicationContext)
     private val libraryCustomizationStore = LibraryCustomizationStore(application.applicationContext)
     private val userPreferencesStore = UserPreferencesStore(application.applicationContext)
+    private val playHistoryStore = PlayHistoryStore(application.applicationContext)
+    private val artistProfileOverrideStore = ArtistProfileOverrideStore(application.applicationContext)
+    private val artistInfoImportRepository = ArtistInfoImportRepository(application.applicationContext)
     private var player: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private val defaultProfile = userPreferencesStore.load(repository.profile())
@@ -100,6 +115,8 @@ class VerseFlowViewModel(
     private var pendingPlaybackSession: SavedPlaybackSession? = playbackSessionStore.load()
     private var hiddenSongIds: Set<String> = persistedLibraryCustomizations.hiddenSongIds
     private var songMetadataOverrides: Map<String, SongMetadataOverride> = persistedLibraryCustomizations.songMetadataOverrides
+    private var artistProfileOverrides: Map<String, ArtistProfileOverride> = artistProfileOverrideStore.load()
+    private var playHistoryEntries: List<PlayHistoryEntry> = playHistoryStore.load()
     private var customPlaylists: List<Playlist> = emptyList()
     private var playlistTrackOverrides: Map<String, List<String>> = emptyMap()
     private var removedPlaylistIds: Set<String> = emptySet()
@@ -128,6 +145,7 @@ class VerseFlowViewModel(
     private val lyricsJobs = mutableMapOf<String, Job>()
     private val lyricsUpgradeAttempts = mutableSetOf<String>()
     private var manualLyricsSearchJob: Job? = null
+    private var manualArtistSearchJob: Job? = null
 
     init {
         initializeMediaController()
@@ -362,9 +380,15 @@ class VerseFlowViewModel(
     }
 
     private fun updatePlayback(playback: PlaybackUiState) {
+        val previousPlayback = uiState.playback
         val previousSongId = uiState.playback.currentSong?.id
         val nextSongId = playback.currentSong?.id
         val shouldResetManualSearch = previousSongId != nextSongId
+        if (previousSongId != null && previousSongId != nextSongId) {
+            previousPlayback.currentSong?.let { previousSong ->
+                appendPlayHistoryEntry(previousSong, listenedMs = previousPlayback.positionMs)
+            }
+        }
         if (shouldResetManualSearch) {
             manualLyricsSearchJob?.cancel()
             manualLyricsSearchJob = null
@@ -382,6 +406,43 @@ class VerseFlowViewModel(
             ensureLyricsForSong(currentSongId)
         }
         persistPlaybackSession()
+    }
+
+    private fun appendPlayHistoryEntry(
+        song: Song,
+        listenedMs: Long,
+        playedAtMs: Long = System.currentTimeMillis(),
+    ) {
+        val normalizedListenedMs = listenedMs.coerceAtLeast(0L)
+        if (normalizedListenedMs < 1_000L) return
+        val artistName = uiState.artistsById[song.artistId]?.name.orEmpty()
+        val albumTitle = uiState.albumsById[song.albumId]?.title.orEmpty()
+        val nextHistory = listOf(
+            PlayHistoryEntry(
+                songId = song.id,
+                title = song.title,
+                artistName = artistName,
+                albumTitle = albumTitle,
+                listenedMs = normalizedListenedMs,
+                playedAtMs = playedAtMs,
+                artworkUri = song.artworkUri,
+                fallbackMediaUri = song.mediaUri,
+            ),
+        ) + playHistoryEntries
+        playHistoryEntries = nextHistory.take(240)
+        playHistoryStore.save(playHistoryEntries)
+        uiState = uiState.copy(playHistoryEntries = playHistoryEntries)
+    }
+
+    fun clearPlayHistory() {
+        playHistoryEntries = emptyList()
+        playHistoryStore.save(emptyList())
+        uiState = uiState.copy(playHistoryEntries = emptyList())
+    }
+
+    private fun flushCurrentPlayHistory() {
+        val currentSong = uiState.playback.currentSong ?: return
+        appendPlayHistoryEntry(currentSong, listenedMs = uiState.playback.positionMs)
     }
 
     private fun ensureLyricsForSong(songId: String) {
@@ -1272,6 +1333,10 @@ class VerseFlowViewModel(
         updateSettings { copy(language = language) }
     }
 
+    fun updateUseTestArtwork(enabled: Boolean) {
+        updateSettings { copy(useTestArtwork = enabled) }
+    }
+
     fun updateProfileName(name: String) {
         val sanitizedName = name.replace("\n", " ").take(40)
         val generatedHandle = sanitizedName
@@ -1293,9 +1358,183 @@ class VerseFlowViewModel(
         )
     }
 
+    fun searchArtistInfo(artistId: String) {
+        val artist = uiState.artistsById[artistId] ?: return
+        uiState = uiState.copy(
+            artistLookup = ArtistLookupUiState(
+                artistId = artistId,
+                isLoading = true,
+                message = "Searching Wikipedia for ${artist.name}...",
+            ),
+        )
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    artistInfoImportRepository.importArtist(artist.name)
+                }
+            }
+            result.onSuccess { payload ->
+                val key = ArtistProfileOverrideStore.artistOverrideKey(artist.name)
+                val override = ArtistProfileOverride(
+                    bio = payload.bio,
+                    photoUri = payload.photoUri,
+                )
+                artistProfileOverrides = artistProfileOverrides + (key to override)
+                artistProfileOverrideStore.saveArtist(artist.name, override)
+                applyArtistProfileOverrides()
+                uiState = uiState.copy(
+                    artistLookup = ArtistLookupUiState(
+                        artistId = artistId,
+                        isLoading = false,
+                        message = "Imported artist info from Wikipedia.",
+                    ),
+                )
+            }.onFailure { error ->
+                uiState = uiState.copy(
+                    artistLookup = ArtistLookupUiState(
+                        artistId = artistId,
+                        isLoading = false,
+                        message = error.message ?: "VerseFlow couldn't import artist info right now.",
+                    ),
+                )
+            }
+        }
+    }
+
+    fun dismissArtistLookupMessage() {
+        uiState = uiState.copy(artistLookup = ArtistLookupUiState())
+    }
+
+    fun openManualArtistSearch(artistId: String) {
+        val artist = uiState.artistsById[artistId] ?: return
+        manualArtistSearchJob?.cancel()
+        manualArtistSearchJob = null
+        uiState = uiState.copy(
+            manualArtistSearch = ManualArtistSearchUiState(
+                artistId = artistId,
+                query = artist.name,
+                isVisible = true,
+            ),
+        )
+        searchManualArtistCandidates()
+    }
+
+    fun dismissManualArtistSearch() {
+        manualArtistSearchJob?.cancel()
+        manualArtistSearchJob = null
+        uiState = uiState.copy(manualArtistSearch = ManualArtistSearchUiState())
+    }
+
+    fun updateManualArtistSearchQuery(query: String) {
+        uiState = uiState.copy(
+            manualArtistSearch = uiState.manualArtistSearch.copy(query = query),
+        )
+    }
+
+    fun searchManualArtistCandidates() {
+        val searchState = uiState.manualArtistSearch
+        if (!searchState.isVisible) return
+        val query = searchState.query.trim()
+        if (query.isBlank()) {
+            uiState = uiState.copy(
+                manualArtistSearch = searchState.copy(
+                    isLoading = false,
+                    hasSearched = true,
+                    results = emptyList(),
+                    message = "Enter an artist search query.",
+                ),
+            )
+            return
+        }
+        manualArtistSearchJob?.cancel()
+        uiState = uiState.copy(
+            manualArtistSearch = searchState.copy(
+                isLoading = true,
+                hasSearched = true,
+                message = null,
+            ),
+        )
+        manualArtistSearchJob = viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    artistInfoImportRepository.searchCandidates(query)
+                }
+            }
+            result.onSuccess { candidates ->
+                uiState = uiState.copy(
+                    manualArtistSearch = uiState.manualArtistSearch.copy(
+                        isLoading = false,
+                        results = candidates,
+                        message = if (candidates.isEmpty()) "No Wikipedia results found for that search." else null,
+                    ),
+                )
+            }.onFailure { error ->
+                uiState = uiState.copy(
+                    manualArtistSearch = uiState.manualArtistSearch.copy(
+                        isLoading = false,
+                        results = emptyList(),
+                        message = error.message ?: "VerseFlow couldn't search Wikipedia right now.",
+                    ),
+                )
+            }
+            manualArtistSearchJob = null
+        }
+    }
+
+    fun applyManualArtistCandidate(candidate: ArtistSearchCandidate) {
+        val searchState = uiState.manualArtistSearch
+        val artistId = searchState.artistId ?: return
+        val artist = uiState.artistsById[artistId] ?: return
+        manualArtistSearchJob?.cancel()
+        uiState = uiState.copy(
+            manualArtistSearch = searchState.copy(isLoading = true, message = "Importing ${candidate.pageTitle}..."),
+        )
+        manualArtistSearchJob = viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    artistInfoImportRepository.importArtistFromPageTitle(candidate.pageTitle)
+                }
+            }
+            result.onSuccess { payload ->
+                val key = ArtistProfileOverrideStore.artistOverrideKey(artist.name)
+                val override = ArtistProfileOverride(
+                    bio = payload.bio,
+                    photoUri = payload.photoUri,
+                )
+                artistProfileOverrides = artistProfileOverrides + (key to override)
+                artistProfileOverrideStore.saveArtist(artist.name, override)
+                applyArtistProfileOverrides()
+                uiState = uiState.copy(
+                    manualArtistSearch = ManualArtistSearchUiState(),
+                    artistLookup = ArtistLookupUiState(
+                        artistId = artistId,
+                        isLoading = false,
+                        message = "Imported artist info from Wikipedia.",
+                    ),
+                )
+            }.onFailure { error ->
+                uiState = uiState.copy(
+                    manualArtistSearch = uiState.manualArtistSearch.copy(
+                        isLoading = false,
+                        message = error.message ?: "VerseFlow couldn't import that Wikipedia page.",
+                    ),
+                )
+            }
+            manualArtistSearchJob = null
+        }
+    }
+
     private fun updateSettings(transform: UserSettings.() -> UserSettings) {
         uiState = uiState.copy(profile = uiState.profile.copy(settings = uiState.profile.settings.transform()))
         userPreferencesStore.saveSettings(uiState.profile.settings)
+    }
+
+    private fun applyArtistProfileOverrides() {
+        val overriddenArtists = uiState.artists.applyArtistOverrides(artistProfileOverrides)
+        uiState = uiState.copy(
+            artists = overriddenArtists,
+            artistsById = overriddenArtists.associateBy(Artist::id),
+        )
     }
 
     private fun persistSearch(query: String) {
@@ -1436,7 +1675,9 @@ class VerseFlowViewModel(
     override fun onCleared() {
         playbackTicker?.cancel()
         cancelLyricsRequests()
+        manualArtistSearchJob?.cancel()
         manualLyricsSearchJob?.cancel()
+        flushCurrentPlayHistory()
         persistPlaybackSession()
         controllerFuture?.let(MediaController::releaseFuture)
         player = null
@@ -1453,7 +1694,8 @@ class VerseFlowViewModel(
     ): VerseFlowUiState {
         val songsById = catalog.songs.associateBy(Song::id)
         val albumsById = catalog.albums.associateBy(Album::id)
-        val artistsById = catalog.artists.associateBy(Artist::id)
+        val artists = catalog.artists.applyArtistOverrides(artistProfileOverrides)
+        val artistsById = artists.associateBy(Artist::id)
         val mergedPlaylists = mergePlaylists(
             basePlaylists = catalog.playlists,
             availableSongIds = songsById.keys,
@@ -1475,7 +1717,7 @@ class VerseFlowViewModel(
             songsById = songsById,
             albums = catalog.albums,
             albumsById = albumsById,
-            artists = catalog.artists,
+            artists = artists,
             artistsById = artistsById,
             playlists = mergedPlaylists,
             playlistsById = playlistsById,
@@ -1485,6 +1727,7 @@ class VerseFlowViewModel(
             favoritePlaylists = catalog.favoritePlaylists.mapNotNull { favoritePlaylist ->
                 playlistsById[favoritePlaylist.id]
             },
+            playHistoryEntries = playHistoryEntries,
             recentSearches = previousState?.recentSearches
                 ?: if (catalogSource == MusicCatalogSource.Demo) repository.recentSearches() else emptyList(),
             trendingCategories = catalog.trendingCategories,
@@ -1500,6 +1743,8 @@ class VerseFlowViewModel(
             lyricsStatusBySongId = lyricsStatusBySongId,
             playQueueSongIds = previousState?.playQueueSongIds.orEmpty().filter(songsById::containsKey),
             playback = playback,
+            artistLookup = previousState?.artistLookup ?: ArtistLookupUiState(),
+            manualArtistSearch = previousState?.manualArtistSearch ?: ManualArtistSearchUiState(),
             manualLyricsSearch = ManualLyricsSearchUiState(),
         )
     }
@@ -1668,6 +1913,7 @@ private data class EffectiveSongSeed(
     val baseSong: Song,
     val title: String,
     val artistName: String,
+    val artistCredits: List<String>,
     val albumTitle: String,
     val genre: String?,
 )
@@ -1685,7 +1931,19 @@ private fun CatalogData.applyLibraryCustomizations(
             EffectiveSongSeed(
                 baseSong = song,
                 title = override?.title ?: song.title,
-                artistName = override?.artistName ?: baseArtistsById[song.artistId]?.name.orEmpty().ifBlank { "Unknown Artist" },
+                artistName = (
+                    override?.artistName?.let(::splitArtistCredits)?.firstOrNull()
+                        ?: song.artistCredits.firstOrNull()
+                        ?: baseArtistsById[song.artistId]?.name.orEmpty().ifBlank { "Unknown Artist" }
+                    ),
+                artistCredits = buildArtistCredits(
+                    primaryArtist = override?.artistName
+                        ?: song.artistCredits.joinToString("/")
+                            .ifBlank { baseArtistsById[song.artistId]?.name.orEmpty() },
+                    title = override?.title ?: song.title,
+                ).ifEmpty {
+                    listOf(baseArtistsById[song.artistId]?.name.orEmpty().ifBlank { "Unknown Artist" })
+                },
                 albumTitle = override?.albumTitle ?: baseAlbumsById[song.albumId]?.title.orEmpty().ifBlank { "Singles" },
                 genre = override?.genre ?: song.genre,
             )
@@ -1713,7 +1971,7 @@ private fun CatalogData.applyLibraryCustomizations(
     fun albumKey(artistName: String, albumTitle: String): String = "${artistKey(artistName)}::${albumTitle.trim().lowercase()}"
 
     val artistNameByKey = visibleSeeds
-        .map { it.artistName }
+        .flatMap { it.artistCredits.ifEmpty { listOf(it.artistName) } }
         .distinctBy(::artistKey)
         .associateBy(::artistKey)
     val artistIdByKey = artistNameByKey.keys.associateWith { key -> "custom_artist_${stableId(key)}" }
@@ -1734,6 +1992,7 @@ private fun CatalogData.applyLibraryCustomizations(
             artistId = effectiveArtistId,
             albumId = effectiveAlbumId,
             genre = seed.genre,
+            artistCredits = seed.artistCredits,
         )
     }
     val effectiveSongsById = effectiveSongs.associateBy(Song::id)
@@ -1768,12 +2027,17 @@ private fun CatalogData.applyLibraryCustomizations(
     val albumsById = albums.associateBy(Album::id)
 
     val artists = visibleSeeds
-        .groupBy { artistKey(it.artistName) }
+        .flatMap { seed ->
+            seed.artistCredits.ifEmpty { listOf(seed.artistName) }.map { credit ->
+                artistKey(credit) to seed
+            }
+        }
+        .groupBy(keySelector = { it.first }, valueTransform = { it.second })
         .map { (key, seeds) ->
             val firstSeed = seeds.first()
             val effectiveArtistId = artistIdByKey.getValue(key)
             val representativeBaseArtist = baseArtistsById[firstSeed.baseSong.artistId]
-            val effectiveArtistSongs = seeds.mapNotNull { seed -> effectiveSongsById[seed.baseSong.id] }
+            val effectiveArtistSongs = seeds.mapNotNull { seed -> effectiveSongsById[seed.baseSong.id] }.distinctBy(Song::id)
             Artist(
                 id = effectiveArtistId,
                 name = artistNameByKey.getValue(key),
@@ -1790,8 +2054,10 @@ private fun CatalogData.applyLibraryCustomizations(
                 bio = representativeBaseArtist?.bio
                     ?: "Available in your VerseFlow library with app-level metadata overrides applied.",
                 heroPalette = representativeBaseArtist?.heroPalette ?: effectiveArtistSongs.first().palette,
-                albumIds = albums.filter { it.artistId == effectiveArtistId }.map(Album::id),
+                albumIds = effectiveArtistSongs.map(Song::albumId).distinct(),
                 topTrackIds = effectiveArtistSongs.take(5).map(Song::id),
+                photoUri = representativeBaseArtist?.photoUri,
+                trackCount = effectiveArtistSongs.size,
                 relatedArtistIds = emptyList(),
             )
         }
@@ -1845,6 +2111,16 @@ private fun CatalogData.applyLibraryCustomizations(
             effectivePlaylistsById[favoritePlaylist.id]
         }.filter { it.isUserCreated || it.trackIds.isNotEmpty() },
         trendingCategories = trendingCategories,
+    )
+}
+
+private fun List<Artist>.applyArtistOverrides(
+    overrides: Map<String, ArtistProfileOverride>,
+): List<Artist> = map { artist ->
+    val override = overrides[ArtistProfileOverrideStore.artistOverrideKey(artist.name)] ?: return@map artist
+    artist.copy(
+        bio = override.bio ?: artist.bio,
+        photoUri = override.photoUri ?: artist.photoUri,
     )
 }
 

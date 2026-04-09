@@ -3753,9 +3753,10 @@ int drawable notification_template_icon_bg 0x7f08012f
 int drawable notification_template_icon_low_bg 0x7f080130
 int drawable notification_tile_bg 0x7f080131
 int drawable notify_panel_notification_icon_bg 0x7f080132
-int drawable test_level_drawable 0x7f080133
-int drawable tooltip_frame_dark 0x7f080134
-int drawable tooltip_frame_light 0x7f080135
+int drawable test_cover_art 0x7f080133
+int drawable test_level_drawable 0x7f080134
+int drawable tooltip_frame_dark 0x7f080135
+int drawable tooltip_frame_light 0x7f080136
 int id ALT 0x7f090000
 int id BOTTOM_END 0x7f090001
 int id BOTTOM_START 0x7f090002

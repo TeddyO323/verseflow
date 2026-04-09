@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -60,6 +61,7 @@ import com.example.verseflow.ui.components.GlowIconButton
 import com.example.verseflow.ui.components.PlaylistCard
 import com.example.verseflow.ui.components.SectionHeader
 import com.example.verseflow.ui.components.formatDuration
+import com.example.verseflow.ui.car.rememberIsCarLandscapeMode
 import java.util.Calendar
 
 @Composable
@@ -75,6 +77,7 @@ fun HomeScreen(
     onOpenSearch: () -> Unit,
     onRequestAudioPermission: () -> Unit,
 ) {
+    val isCarLandscapeMode = rememberIsCarLandscapeMode()
     val showEmptyLocalLibrary = uiState.audioPermissionGranted &&
         uiState.hasScannedDeviceAudio &&
         uiState.catalogSource == com.example.verseflow.model.MusicCatalogSource.Device &&
@@ -87,6 +90,15 @@ fun HomeScreen(
     var playlistPickerAlbum by remember { mutableStateOf<Album?>(null) }
     val availablePlaylists = remember(uiState.playlists) {
         uiState.playlists.sortedBy { it.title.lowercase() }
+    }
+    val favoriteArtists = remember(uiState.artists, uiState.songs) {
+        uiState.artists
+            .sortedWith(
+                compareByDescending<Artist> { artist ->
+                    artist.trackCount
+                }.thenBy { it.name.lowercase() },
+            )
+            .take(5)
     }
 
     if (playlistPickerAlbum != null) {
@@ -192,6 +204,7 @@ fun HomeScreen(
                     FeaturedCarousel(
                         albums = uiState.featuredAlbums,
                         onAlbumClick = onAlbumClick,
+                        isCarLandscapeMode = isCarLandscapeMode,
                     )
                 }
             }
@@ -275,12 +288,12 @@ fun HomeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                         SectionHeader(
-                            title = "Artists in Rotation",
-                            subtitle = "Stay close to the voices behind the glow",
+                            title = "Favourite artists",
+                            subtitle = "Top artists in your library, ranked by how many songs you have from each one",
                         )
                     }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(uiState.artists.take(4), key = { it.id }) { artist ->
+                        items(favoriteArtists, key = { it.id }) { artist ->
                             ArtistCard(
                                 artist = artist,
                                 onClick = { onArtistClick(artist) },
@@ -562,9 +575,27 @@ private fun greetingForCurrentTime(): String {
 private fun FeaturedCarousel(
     albums: List<Album>,
     onAlbumClick: (Album) -> Unit,
+    isCarLandscapeMode: Boolean,
 ) {
-    val pagerState = rememberPagerState(pageCount = { albums.size })
     if (albums.isEmpty()) return
+
+    if (isCarLandscapeMode) {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(end = 10.dp),
+        ) {
+            items(albums, key = { it.id }) { album ->
+                FeaturedAlbumCard(
+                    album = album,
+                    onAlbumClick = onAlbumClick,
+                    compactSquare = true,
+                )
+            }
+        }
+        return
+    }
+
+    val pagerState = rememberPagerState(pageCount = { albums.size })
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         HorizontalPager(
@@ -572,67 +603,12 @@ private fun FeaturedCarousel(
             contentPadding = PaddingValues(end = 10.dp),
             pageSpacing = 8.dp,
         ) { page ->
-            val album = albums[page]
-            val trackCountLabel = if (album.label.contains("library", ignoreCase = true)) {
-                "${album.trackIds.size} songs imported"
-            } else {
-                "${album.trackIds.size} songs in album"
-            }
-            GlassPanel(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = { onAlbumClick(album) }),
-                shape = RectangleShape,
-                surfaceAlpha = 0.56f,
-                surfaceVariantAlpha = 0.18f,
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
-                ) {
-                    AlbumArtwork(
-                        title = album.title,
-                        subtitle = album.label,
-                        palette = album.palette,
-                        artworkUri = album.artworkUri,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(250.dp),
-                        shape = RectangleShape,
-                        borderColor = Color.Transparent,
-                        showOverlay = false,
-                    )
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = album.title,
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = album.label,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.secondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = trackCountLabel,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
+            FeaturedAlbumCard(
+                album = albums[page],
+                onAlbumClick = onAlbumClick,
+                compactSquare = false,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             repeat(albums.size) { index ->
@@ -645,6 +621,74 @@ private fun FeaturedCarousel(
                             color = if (selected) MaterialTheme.colorScheme.secondary else Color.White.copy(alpha = 0.12f),
                             shape = RoundedCornerShape(100),
                         ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeaturedAlbumCard(
+    album: Album,
+    onAlbumClick: (Album) -> Unit,
+    compactSquare: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val trackCountLabel = if (album.label.contains("library", ignoreCase = true)) {
+        "${album.trackIds.size} songs imported"
+    } else {
+        "${album.trackIds.size} songs in album"
+    }
+    GlassPanel(
+        modifier = modifier
+            .then(if (compactSquare) Modifier.width(340.dp) else Modifier)
+            .clickable(onClick = { onAlbumClick(album) }),
+        shape = RectangleShape,
+        surfaceAlpha = 0.56f,
+        surfaceVariantAlpha = 0.18f,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+        ) {
+            AlbumArtwork(
+                title = album.title,
+                subtitle = album.label,
+                palette = album.palette,
+                artworkUri = album.artworkUri,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(if (compactSquare) 300.dp else 250.dp),
+                shape = RectangleShape,
+                borderColor = Color.Transparent,
+                showOverlay = false,
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(if (compactSquare) 14.dp else 16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = album.title,
+                    style = if (compactSquare) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = if (compactSquare) 2 else 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = album.label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = trackCountLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

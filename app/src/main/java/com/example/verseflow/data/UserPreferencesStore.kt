@@ -40,6 +40,7 @@ class UserPreferencesStore(
             .putBoolean(KEY_WIFI_DOWNLOADS, settings.downloadOnWifiOnly)
             .putBoolean(KEY_EXPLICIT_CONTENT, settings.explicitContent)
             .putString(KEY_LANGUAGE, settings.language)
+            .putBoolean(KEY_TEST_ARTWORK, settings.useTestArtwork)
             .apply()
     }
 
@@ -57,6 +58,7 @@ class UserPreferencesStore(
             language = preferences.getString(KEY_LANGUAGE, defaultSettings.language).orEmpty().ifBlank {
                 defaultSettings.language
             },
+            useTestArtwork = preferences.getBoolean(KEY_TEST_ARTWORK, defaultSettings.useTestArtwork),
         )
     }
 
@@ -70,5 +72,6 @@ class UserPreferencesStore(
         const val KEY_WIFI_DOWNLOADS = "wifi_downloads"
         const val KEY_EXPLICIT_CONTENT = "explicit_content"
         const val KEY_LANGUAGE = "language"
+        const val KEY_TEST_ARTWORK = "use_test_artwork"
     }
 }

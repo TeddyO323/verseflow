@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,12 +25,15 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.AlertDialog
@@ -75,7 +79,10 @@ import com.example.verseflow.ui.components.GlowIconButton
 import com.example.verseflow.ui.components.PlaylistCard
 import com.example.verseflow.ui.components.SongListItem
 import com.example.verseflow.ui.components.SongOverflowMenu
+import com.example.verseflow.ui.components.VerseFilterChip
 import com.example.verseflow.ui.components.formatDuration
+import com.example.verseflow.ui.car.rememberCarModeArtworkUri
+import com.example.verseflow.ui.car.rememberIsCarLandscapeMode
 
 @Composable
 fun LibraryScreen(
@@ -98,6 +105,8 @@ fun LibraryScreen(
     onDeletePlaylist: (String) -> Unit,
     onRequestAudioPermission: () -> Unit,
 ) {
+    val isCarLandscapeMode = rememberIsCarLandscapeMode()
+    val carArtworkUri = rememberCarModeArtworkUri(uiState.profile.settings.useTestArtwork)
     val alphabeticalSongs = remember(uiState.songs) {
         uiState.songs.sortedBy { it.title.lowercase() }
     }
@@ -112,6 +121,15 @@ fun LibraryScreen(
             compareByDescending<Playlist> { it.isUserCreated }
                 .thenBy { it.title.lowercase() },
         )
+    }
+    val albumFallbackMediaById = remember(uiState.albums, uiState.songsById) {
+        uiState.albums.associate { album ->
+            album.id to album.trackIds
+                .asSequence()
+                .mapNotNull(uiState.songsById::get)
+                .mapNotNull(Song::mediaUri)
+                .firstOrNull()
+        }
     }
     val genres = remember(uiState.songs, uiState.artistsById) {
         uiState.songs
@@ -404,6 +422,25 @@ fun LibraryScreen(
                     }
                 }
             }
+            if (isCarLandscapeMode && uiState.selectedLibraryTab == LibraryTab.Albums) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    VerseFilterChip(
+                        label = "Grid",
+                        selected = albumGridView,
+                        onClick = { albumGridView = true },
+                    )
+                    VerseFilterChip(
+                        label = "List",
+                        selected = !albumGridView,
+                        onClick = { albumGridView = false },
+                    )
+                }
+            }
         }
 
         AnimatedVisibility(
@@ -551,19 +588,49 @@ fun LibraryScreen(
                                 contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                items(alphabeticalAlbums, key = { it.id }) { album ->
-                                    AlbumCard(
-                                        album = album,
-                                        artistName = uiState.artistsById[album.artistId]?.name.orEmpty(),
-                                        onClick = { onAlbumClick(album) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RectangleShape,
-                                        fixedWidth = null,
-                                        surfaceAlpha = 0.48f,
-                                        surfaceVariantAlpha = 0.12f,
-                                        topArtworkBleed = true,
-                                        artworkHeight = 208.dp,
-                                    )
+                                if (isCarLandscapeMode) {
+                                    items(alphabeticalAlbums.chunked(2), key = { row -> row.joinToString { it.id } }) { rowAlbums ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        ) {
+                                            rowAlbums.forEach { album ->
+                                                AlbumCard(
+                                                    album = album,
+                                                    artistName = uiState.artistsById[album.artistId]?.name.orEmpty(),
+                                                    onClick = { onAlbumClick(album) },
+                                                    modifier = Modifier.weight(1f),
+                                                    shape = RectangleShape,
+                                                    fixedWidth = null,
+                                                    surfaceAlpha = 0.48f,
+                                                    surfaceVariantAlpha = 0.12f,
+                                                    topArtworkBleed = true,
+                                                    artworkHeight = 184.dp,
+                                                    artworkUriOverride = carArtworkUri,
+                                                    fallbackMediaUri = albumFallbackMediaById[album.id],
+                                                )
+                                            }
+                                            if (rowAlbums.size == 1) {
+                                                Spacer(modifier = Modifier.weight(1f))
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    items(alphabeticalAlbums, key = { it.id }) { album ->
+                                        AlbumCard(
+                                            album = album,
+                                            artistName = uiState.artistsById[album.artistId]?.name.orEmpty(),
+                                            onClick = { onAlbumClick(album) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RectangleShape,
+                                            fixedWidth = null,
+                                            surfaceAlpha = 0.48f,
+                                            surfaceVariantAlpha = 0.12f,
+                                            topArtworkBleed = true,
+                                            artworkHeight = 208.dp,
+                                            fallbackMediaUri = albumFallbackMediaById[album.id],
+                                        )
+                                    }
                                 }
                             }
                         } else {
@@ -577,6 +644,8 @@ fun LibraryScreen(
                                         album = album,
                                         artistName = uiState.artistsById[album.artistId]?.name.orEmpty(),
                                         onClick = { onAlbumClick(album) },
+                                        artworkUriOverride = if (isCarLandscapeMode) carArtworkUri else null,
+                                        fallbackMediaUri = albumFallbackMediaById[album.id],
                                     )
                                 }
                             }
@@ -790,6 +859,8 @@ private fun LibraryAlbumListItem(
     album: Album,
     artistName: String,
     onClick: () -> Unit,
+    artworkUriOverride: String? = null,
+    fallbackMediaUri: String? = null,
 ) {
     GlassPanel(
         modifier = Modifier
@@ -812,7 +883,8 @@ private fun LibraryAlbumListItem(
                 title = album.title,
                 subtitle = artistName,
                 palette = album.palette,
-                artworkUri = album.artworkUri,
+                artworkUri = artworkUriOverride ?: album.artworkUri,
+                fallbackMediaUri = fallbackMediaUri,
                 modifier = Modifier.size(54.dp),
                 shape = RectangleShape,
                 borderColor = Color.Transparent,

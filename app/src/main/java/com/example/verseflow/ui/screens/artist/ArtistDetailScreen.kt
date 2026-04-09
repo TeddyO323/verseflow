@@ -1,6 +1,7 @@
 package com.example.verseflow.ui.screens.artist
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,8 +16,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +47,13 @@ fun ArtistDetailScreen(
     uiState: VerseFlowUiState,
     onBack: () -> Unit,
     onPlayTopTracks: () -> Unit,
+    onSearchArtistInfo: (String) -> Unit,
+    onOpenManualArtistSearch: (String) -> Unit,
+    onDismissArtistLookupMessage: () -> Unit,
+    onDismissManualArtistSearch: () -> Unit,
+    onManualArtistSearchQueryChange: (String) -> Unit,
+    onManualArtistSearchExecute: () -> Unit,
+    onManualArtistCandidateSelected: (com.example.verseflow.model.ArtistSearchCandidate) -> Unit,
     onAlbumClick: (Album) -> Unit,
     onSongClick: (Song) -> Unit,
     onArtistClick: (Artist) -> Unit,
@@ -54,7 +67,7 @@ fun ArtistDetailScreen(
     val albums = artist.albumIds.mapNotNull(uiState.albumsById::get)
     val topTracks = artist.topTrackIds.mapNotNull(uiState.songsById::get)
     val relatedArtists = artist.relatedArtistIds.mapNotNull(uiState.artistsById::get)
-    val heroArtworkUri = albums.firstNotNullOfOrNull(Album::artworkUri)
+    val heroArtworkUri = artist.photoUri
 
     LazyColumn(
         modifier = Modifier
@@ -116,6 +129,59 @@ fun ArtistDetailScreen(
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.secondary,
                     )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AssistChip(
+                            onClick = { onSearchArtistInfo(artist.id) },
+                            label = {
+                                Text(
+                                    if (uiState.artistLookup.isLoading && uiState.artistLookup.artistId == artist.id) {
+                                        "Searching..."
+                                    } else {
+                                        "Search artist info"
+                                    },
+                                )
+                            },
+                            enabled = !(uiState.artistLookup.isLoading && uiState.artistLookup.artistId == artist.id),
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f),
+                                labelColor = MaterialTheme.colorScheme.secondary,
+                            ),
+                        )
+                        AssistChip(
+                            onClick = { onOpenManualArtistSearch(artist.id) },
+                            label = { Text("Manual search") },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                        )
+                    }
+                    if (uiState.artistLookup.artistId == artist.id && !uiState.artistLookup.message.isNullOrBlank()) {
+                        GlassPanel(modifier = Modifier.fillMaxWidth(), surfaceAlpha = 0.40f, surfaceVariantAlpha = 0.10f) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = uiState.artistLookup.message.orEmpty(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    text = "Dismiss",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier
+                                        .padding(start = 12.dp)
+                                        .clickable(onClick = onDismissArtistLookupMessage),
+                                )
+                            }
+                        }
+                    }
                     Text(
                         text = artist.bio,
                         style = MaterialTheme.typography.bodyLarge,
@@ -210,5 +276,72 @@ fun ArtistDetailScreen(
                 }
             }
         }
+    }
+
+    if (uiState.manualArtistSearch.isVisible && uiState.manualArtistSearch.artistId == artist.id) {
+        AlertDialog(
+            onDismissRequest = onDismissManualArtistSearch,
+            title = { Text("Search Wikipedia") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TextField(
+                        value = uiState.manualArtistSearch.query,
+                        onValueChange = onManualArtistSearchQueryChange,
+                        label = { Text("Artist search") },
+                    )
+                    if (uiState.manualArtistSearch.message != null) {
+                        Text(
+                            text = uiState.manualArtistSearch.message.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        uiState.manualArtistSearch.results.forEach { candidate ->
+                            GlassPanel(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onManualArtistCandidateSelected(candidate) },
+                                surfaceAlpha = 0.36f,
+                                surfaceVariantAlpha = 0.10f,
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(
+                                        text = candidate.pageTitle,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    if (candidate.description.isNotBlank()) {
+                                        Text(
+                                            text = candidate.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = onManualArtistSearchExecute,
+                    enabled = !uiState.manualArtistSearch.isLoading,
+                ) {
+                    Text(if (uiState.manualArtistSearch.isLoading) "Searching..." else "Search")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissManualArtistSearch) {
+                    Text("Close")
+                }
+            },
+        )
     }
 }

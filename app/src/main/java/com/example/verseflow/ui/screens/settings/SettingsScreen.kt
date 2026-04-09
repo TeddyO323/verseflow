@@ -1,15 +1,18 @@
 package com.example.verseflow.ui.screens.settings
 
+import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -22,9 +25,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.verseflow.model.ThemePreset
 import com.example.verseflow.model.VerseFlowUiState
@@ -33,6 +38,7 @@ import com.example.verseflow.ui.components.GlassPanel
 import com.example.verseflow.ui.components.GlowIconButton
 import com.example.verseflow.ui.components.SectionHeader
 import com.example.verseflow.ui.components.VerseFilterChip
+import com.example.verseflow.ui.car.rememberIsCarLandscapeMode
 
 @Composable
 fun SettingsScreen(
@@ -47,8 +53,31 @@ fun SettingsScreen(
     onWifiDownloadsChange: (Boolean) -> Unit,
     onExplicitContentChange: (Boolean) -> Unit,
     onLanguageSelected: (String) -> Unit,
+    onUseTestArtworkChange: (Boolean) -> Unit = {},
 ) {
     val settings = uiState.profile.settings
+    val context = LocalContext.current
+    val isDebugBuild = remember(context) {
+        (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    }
+    val isCarLandscapeMode = rememberIsCarLandscapeMode()
+    if (isCarLandscapeMode) {
+        CarSettingsScreen(
+            uiState = uiState,
+            isDebugBuild = isDebugBuild,
+            onOpenSearch = onOpenSearch,
+            onProfileNameChange = onProfileNameChange,
+            onThemeSelected = onThemeSelected,
+            onAutoplayChange = onAutoplayChange,
+            onImmersiveMotionChange = onImmersiveMotionChange,
+            onSyncedLyricsChange = onSyncedLyricsChange,
+            onWifiDownloadsChange = onWifiDownloadsChange,
+            onExplicitContentChange = onExplicitContentChange,
+            onLanguageSelected = onLanguageSelected,
+            onUseTestArtworkChange = onUseTestArtworkChange,
+        )
+        return
+    }
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -192,6 +221,16 @@ fun SettingsScreen(
                 ),
             )
         }
+        if (isDebugBuild) {
+            item {
+                SettingsSection(
+                    title = "Debug",
+                    toggles = listOf(
+                        SettingToggle("Use test artwork", settings.useTestArtwork, onUseTestArtworkChange),
+                    ),
+                )
+            }
+        }
         item {
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                 SectionHeader(
@@ -263,6 +302,162 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CarSettingsScreen(
+    uiState: VerseFlowUiState,
+    isDebugBuild: Boolean,
+    onOpenSearch: () -> Unit,
+    onProfileNameChange: (String) -> Unit,
+    onThemeSelected: (ThemePreset) -> Unit,
+    onAutoplayChange: (Boolean) -> Unit,
+    onImmersiveMotionChange: (Boolean) -> Unit,
+    onSyncedLyricsChange: (Boolean) -> Unit,
+    onWifiDownloadsChange: (Boolean) -> Unit,
+    onExplicitContentChange: (Boolean) -> Unit,
+    onLanguageSelected: (String) -> Unit,
+    onUseTestArtworkChange: (Boolean) -> Unit,
+) {
+    val settings = uiState.profile.settings
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        GlassPanel(
+            modifier = Modifier
+                .weight(0.38f)
+                .fillMaxHeight(),
+            shape = RectangleShape,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Settings",
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    GlowIconButton(
+                        icon = Icons.Rounded.Search,
+                        contentDescription = "Search",
+                        onClick = onOpenSearch,
+                    )
+                }
+                AlbumArtwork(
+                    title = uiState.profile.displayName,
+                    subtitle = uiState.profile.membershipTier,
+                    palette = uiState.profile.avatarPalette,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    shape = RectangleShape,
+                )
+                TextField(
+                    value = uiState.profile.name,
+                    onValueChange = onProfileNameChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Display name") },
+                    singleLine = true,
+                    shape = RectangleShape,
+                )
+            }
+        }
+        LazyColumn(
+            modifier = Modifier
+                .weight(0.62f)
+                .fillMaxHeight(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    ThemePreset.entries.forEach { preset ->
+                        VerseFilterChip(
+                            label = preset.label,
+                            selected = preset == settings.themePreset,
+                            onClick = { onThemeSelected(preset) },
+                        )
+                    }
+                }
+            }
+            item {
+                SettingsSection(
+                    title = "Playback",
+                    toggles = listOf(
+                        SettingToggle("Autoplay next tracks", settings.autoplay, onAutoplayChange),
+                        SettingToggle("Immersive motion", settings.immersiveMotion, onImmersiveMotionChange),
+                        SettingToggle("Allow explicit content", settings.explicitContent, onExplicitContentChange),
+                    ),
+                )
+            }
+            item {
+                SettingsSection(
+                    title = "Lyrics",
+                    toggles = listOf(
+                        SettingToggle("Synced lyrics by default", settings.showSyncedLyricsByDefault, onSyncedLyricsChange),
+                        SettingToggle("Download over Wi-Fi only", settings.downloadOnWifiOnly, onWifiDownloadsChange),
+                    ),
+                )
+            }
+            if (isDebugBuild) {
+                item {
+                    SettingsSection(
+                        title = "Debug",
+                        toggles = listOf(
+                            SettingToggle("Use test artwork", settings.useTestArtwork, onUseTestArtworkChange),
+                        ),
+                    )
+                }
+            }
+            item {
+                GlassPanel(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RectangleShape,
+                    surfaceAlpha = 0.56f,
+                    surfaceVariantAlpha = 0.18f,
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            text = "Language",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            listOf("English", "Japanese", "French").forEach { language ->
+                                VerseFilterChip(
+                                    label = language,
+                                    selected = settings.language == language,
+                                    onClick = { onLanguageSelected(language) },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

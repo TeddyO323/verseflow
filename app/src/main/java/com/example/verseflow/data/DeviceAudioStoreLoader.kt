@@ -67,6 +67,8 @@ class DeviceAudioStoreLoader(
                 val id = cursor.getLong(idColumn)
                 val title = sanitizeMetadata(cursor.getString(titleColumn), fallback = "Untitled Track")
                 val artistName = sanitizeMetadata(cursor.getString(artistColumn), fallback = "Unknown Artist")
+                val artistCredits = buildArtistCredits(artistName, title)
+                val primaryArtistName = artistCredits.firstOrNull() ?: artistName
                 val albumTitle = sanitizeMetadata(cursor.getString(albumColumn), fallback = "Singles")
                 val albumMediaId = cursor.getLong(albumIdColumn).takeIf { it > 0L }
                 val durationMs = cursor.getLong(durationColumn).coerceAtLeast(0L)
@@ -82,7 +84,8 @@ class DeviceAudioStoreLoader(
                 rows += DeviceSongRow(
                     id = id,
                     title = title,
-                    artistName = artistName,
+                    artistName = primaryArtistName,
+                    artistCredits = artistCredits,
                     albumTitle = albumTitle,
                     genre = genreByAudioId[id],
                     albumMediaId = albumMediaId,
@@ -111,7 +114,7 @@ class DeviceAudioStoreLoader(
         }
 
         val artistIdsByName = rows
-            .map { it.artistName }
+            .flatMap { it.artistCredits.ifEmpty { listOf(it.artistName) } }
             .distinct()
             .associateWith { name -> "device_artist_${stableId(name)}" }
 
@@ -136,13 +139,16 @@ class DeviceAudioStoreLoader(
                 isDownloaded = true,
                 artworkUri = row.artworkUri,
                 mediaUri = row.mediaUri,
+                artistCredits = row.artistCredits.ifEmpty { listOf(row.artistName) },
                 folderName = row.folderName,
                 folderPath = row.folderPath,
                 source = SongSource.Local,
             )
         }
         val songsByAlbumId = songs.groupBy(Song::albumId)
-        val songsByArtistId = songs.groupBy(Song::artistId)
+        val songsByArtistId = artistIdsByName.entries.associate { (artistName, artistId) ->
+            artistId to songs.filter { song -> artistName in song.artistCredits }
+        }
 
         val albums = rows
             .groupBy { "${it.albumTitle}::${it.artistName}" }
@@ -189,6 +195,7 @@ class DeviceAudioStoreLoader(
                 heroPalette = paletteFor(artistName),
                 albumIds = albums.filter { it.artistId == artistId }.map(Album::id),
                 topTrackIds = artistSongs.take(5).map(Song::id),
+                trackCount = artistSongs.size,
                 relatedArtistIds = related,
             )
         }
@@ -378,6 +385,7 @@ private data class DeviceSongRow(
     val id: Long,
     val title: String,
     val artistName: String,
+    val artistCredits: List<String>,
     val albumTitle: String,
     val genre: String?,
     val albumMediaId: Long?,

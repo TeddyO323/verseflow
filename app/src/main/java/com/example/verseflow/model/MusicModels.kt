@@ -99,7 +99,41 @@ data class Artist(
     val heroPalette: AccentPalette,
     val albumIds: List<String>,
     val topTrackIds: List<String>,
+    val photoUri: String? = null,
+    val trackCount: Int = 0,
     val relatedArtistIds: List<String>,
+)
+
+data class PlayHistoryEntry(
+    val songId: String,
+    val title: String,
+    val artistName: String,
+    val albumTitle: String,
+    val listenedMs: Long,
+    val playedAtMs: Long,
+    val artworkUri: String? = null,
+    val fallbackMediaUri: String? = null,
+)
+
+data class ArtistLookupUiState(
+    val artistId: String? = null,
+    val isLoading: Boolean = false,
+    val message: String? = null,
+)
+
+data class ArtistSearchCandidate(
+    val pageTitle: String,
+    val description: String,
+)
+
+data class ManualArtistSearchUiState(
+    val artistId: String? = null,
+    val query: String = "",
+    val isVisible: Boolean = false,
+    val isLoading: Boolean = false,
+    val hasSearched: Boolean = false,
+    val results: List<ArtistSearchCandidate> = emptyList(),
+    val message: String? = null,
 )
 
 data class Album(
@@ -129,6 +163,7 @@ data class Song(
     val isDownloaded: Boolean = false,
     val artworkUri: String? = null,
     val mediaUri: String? = null,
+    val artistCredits: List<String> = emptyList(),
     val folderName: String? = null,
     val folderPath: String? = null,
     val source: SongSource = SongSource.Mock,
@@ -154,6 +189,7 @@ data class UserSettings(
     val downloadOnWifiOnly: Boolean = true,
     val explicitContent: Boolean = false,
     val language: String = "English",
+    val useTestArtwork: Boolean = false,
 )
 
 data class UserProfile(
@@ -207,6 +243,7 @@ data class VerseFlowUiState(
     val recentlyPlayed: List<Song>,
     val trendingSongs: List<Song>,
     val favoritePlaylists: List<Playlist>,
+    val playHistoryEntries: List<PlayHistoryEntry> = emptyList(),
     val recentSearches: List<String>,
     val trendingCategories: List<String>,
     val selectedLibraryTab: LibraryTab = LibraryTab.Songs,
@@ -221,5 +258,7 @@ data class VerseFlowUiState(
     val lyricsStatusBySongId: Map<String, LyricsLoadState> = emptyMap(),
     val playQueueSongIds: List<String> = emptyList(),
     val playback: PlaybackUiState = PlaybackUiState(),
+    val artistLookup: ArtistLookupUiState = ArtistLookupUiState(),
+    val manualArtistSearch: ManualArtistSearchUiState = ManualArtistSearchUiState(),
     val manualLyricsSearch: ManualLyricsSearchUiState = ManualLyricsSearchUiState(),
 )

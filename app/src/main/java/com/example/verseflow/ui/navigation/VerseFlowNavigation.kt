@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavHostController
@@ -16,6 +17,7 @@ import com.example.verseflow.VerseFlowViewModel
 import com.example.verseflow.ui.screens.album.AlbumDetailScreen
 import com.example.verseflow.ui.screens.artist.ArtistDetailScreen
 import com.example.verseflow.ui.screens.home.HomeScreen
+import com.example.verseflow.ui.screens.history.PlayHistoryScreen
 import com.example.verseflow.ui.screens.library.LibraryScreen
 import com.example.verseflow.ui.screens.lyrics.LyricsScreen
 import com.example.verseflow.ui.screens.player.NowPlayingScreen
@@ -28,16 +30,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ManageSearch
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Settings
 import com.example.verseflow.model.LibraryTab
 import com.example.verseflow.model.VerseFlowUiState
+import com.example.verseflow.ui.car.rememberIsCarLandscapeMode
 
 sealed class VerseFlowDestination(val route: String) {
     data object Splash : VerseFlowDestination("splash")
     data object Home : VerseFlowDestination("home")
     data object Library : VerseFlowDestination("library")
     data object PlayQueue : VerseFlowDestination("play_queue")
+    data object PlayHistory : VerseFlowDestination("play_history")
     data object Search : VerseFlowDestination("search")
     data object NowPlaying : VerseFlowDestination("now_playing")
     data object Lyrics : VerseFlowDestination("lyrics")
@@ -61,6 +66,7 @@ data class TopLevelDestination(
 
 val topLevelDestinations = listOf(
     TopLevelDestination(VerseFlowDestination.Home.route, "Home", Icons.Rounded.Home),
+    TopLevelDestination(VerseFlowDestination.PlayHistory.route, "History", Icons.Rounded.History),
     TopLevelDestination(VerseFlowDestination.Library.route, "Library", Icons.Rounded.LibraryMusic),
     TopLevelDestination(VerseFlowDestination.PlayQueue.route, "Play Queue", Icons.AutoMirrored.Rounded.QueueMusic),
     TopLevelDestination(VerseFlowDestination.Search.route, "Search", Icons.AutoMirrored.Rounded.ManageSearch),
@@ -76,6 +82,21 @@ fun VerseFlowNavHost(
     onOpenDrawer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isCarLandscapeMode = rememberIsCarLandscapeMode()
+    val openAlbumRoute: (String) -> Unit = remember(navController, isCarLandscapeMode) {
+        { albumId ->
+            if (!isCarLandscapeMode) {
+                navController.navigate(VerseFlowDestination.AlbumDetail.createRoute(albumId))
+            }
+        }
+    }
+    val openArtistRoute: (String) -> Unit = remember(navController, isCarLandscapeMode) {
+        { artistId ->
+            if (!isCarLandscapeMode) {
+                navController.navigate(VerseFlowDestination.ArtistDetail.createRoute(artistId))
+            }
+        }
+    }
     NavHost(
         navController = navController,
         startDestination = VerseFlowDestination.Splash.route,
@@ -106,7 +127,7 @@ fun VerseFlowNavHost(
             HomeScreen(
                 uiState = uiState,
                 onAlbumClick = {
-                    navController.navigate(VerseFlowDestination.AlbumDetail.createRoute(it.id))
+                    openAlbumRoute(it.id)
                 },
                 onSongClick = {
                     viewModel.playSong(it.id)
@@ -115,7 +136,7 @@ fun VerseFlowNavHost(
                     navController.navigate(VerseFlowDestination.PlaylistDetail.createRoute(it.id))
                 },
                 onArtistClick = {
-                    navController.navigate(VerseFlowDestination.ArtistDetail.createRoute(it.id))
+                    openArtistRoute(it.id)
                 },
                 onAddAlbumToPlaylist = viewModel::addAlbumToPlaylist,
                 onAddAlbumToPlayQueue = { album -> viewModel.addAlbumToPlayQueue(album.id) },
@@ -131,9 +152,9 @@ fun VerseFlowNavHost(
                     viewModel.playCurrentLibrarySong(it.id)
                 },
                 onAlbumClick = {
-                    navController.navigate(VerseFlowDestination.AlbumDetail.createRoute(it.id))
+                    openAlbumRoute(it.id)
                 },
-                onArtistClick = { navController.navigate(VerseFlowDestination.ArtistDetail.createRoute(it.id)) },
+                onArtistClick = { openArtistRoute(it.id) },
                 onPlaylistClick = { navController.navigate(VerseFlowDestination.PlaylistDetail.createRoute(it.id)) },
                 onLibraryTabChange = viewModel::selectLibraryTab,
                 onOpenDrawer = onOpenDrawer,
@@ -150,6 +171,15 @@ fun VerseFlowNavHost(
                 onRequestAudioPermission = onRequestAudioPermission,
             )
         }
+        composable(VerseFlowDestination.PlayHistory.route) {
+            PlayHistoryScreen(
+                uiState = uiState,
+                onOpenDrawer = onOpenDrawer,
+                onOpenSearch = { navController.navigate(VerseFlowDestination.Search.route) },
+                onSongClick = { viewModel.playSong(it.id) },
+                onClearHistory = viewModel::clearPlayHistory,
+            )
+        }
         composable(VerseFlowDestination.PlayQueue.route) {
             PlayQueueScreen(
                 uiState = uiState,
@@ -159,10 +189,10 @@ fun VerseFlowNavHost(
                     viewModel.playQueuedSong(it.id)
                 },
                 onArtistClick = { artistId ->
-                    navController.navigate(VerseFlowDestination.ArtistDetail.createRoute(artistId))
+                    openArtistRoute(artistId)
                 },
                 onAlbumClick = { albumId ->
-                    navController.navigate(VerseFlowDestination.AlbumDetail.createRoute(albumId))
+                    openAlbumRoute(albumId)
                 },
                 onRemoveFromVerseFlow = viewModel::requestRemoveFromVerseFlow,
                 onAddSongToPlaylist = viewModel::addSongToPlaylist,
@@ -183,11 +213,11 @@ fun VerseFlowNavHost(
                     viewModel.recallSearch(uiState.searchQuery.ifBlank { it.title })
                 },
                 onAlbumClick = {
-                    navController.navigate(VerseFlowDestination.AlbumDetail.createRoute(it.id))
+                    openAlbumRoute(it.id)
                 },
                 onArtistClick = {
                     viewModel.recallSearch(it.name)
-                    navController.navigate(VerseFlowDestination.ArtistDetail.createRoute(it.id))
+                    openArtistRoute(it.id)
                 },
                 onPlaylistClick = {
                     viewModel.recallSearch(it.title)
@@ -224,10 +254,10 @@ fun VerseFlowNavHost(
                 onDeleteFromStorage = viewModel::requestDeleteFromDevice,
                 onEditMusicInfo = viewModel::requestEditMusicInfo,
                 onArtistRequested = { artistId ->
-                    navController.navigate(VerseFlowDestination.ArtistDetail.createRoute(artistId))
+                    openArtistRoute(artistId)
                 },
                 onAlbumRequested = { albumId ->
-                    navController.navigate(VerseFlowDestination.AlbumDetail.createRoute(albumId))
+                    openAlbumRoute(albumId)
                 },
                 onLyricsRequested = { navController.navigate(VerseFlowDestination.Lyrics.route) },
             )
@@ -254,10 +284,10 @@ fun VerseFlowNavHost(
                         viewModel.playAlbumTrack(it.id, song.id)
                     },
                     onAlbumClick = { album ->
-                        navController.navigate(VerseFlowDestination.AlbumDetail.createRoute(album.id))
+                        openAlbumRoute(album.id)
                     },
                     onArtistClick = { artist ->
-                        navController.navigate(VerseFlowDestination.ArtistDetail.createRoute(artist.id))
+                        openArtistRoute(artist.id)
                     },
                     onRemoveFromVerseFlow = viewModel::requestRemoveFromVerseFlow,
                     onAddSongToPlaylist = viewModel::addSongToPlaylist,
@@ -308,10 +338,10 @@ fun VerseFlowNavHost(
                         viewModel.playSong(song.id, queueSongIds = it.trackIds)
                     },
                     onAlbumClick = { albumId ->
-                        navController.navigate(VerseFlowDestination.AlbumDetail.createRoute(albumId))
+                        openAlbumRoute(albumId)
                     },
                     onArtistClick = { artistId ->
-                        navController.navigate(VerseFlowDestination.ArtistDetail.createRoute(artistId))
+                        openArtistRoute(artistId)
                     },
                     onRemoveFromVerseFlow = viewModel::requestRemoveFromVerseFlow,
                     onAddSongToPlaylist = viewModel::addSongToPlaylist,
@@ -337,14 +367,23 @@ fun VerseFlowNavHost(
                         viewModel.playArtistTopTracks(it.id)
                         navController.navigate(VerseFlowDestination.NowPlaying.route)
                     },
+                    onSearchArtistInfo = { artistId ->
+                        viewModel.searchArtistInfo(artistId)
+                    },
+                    onOpenManualArtistSearch = viewModel::openManualArtistSearch,
+                    onDismissArtistLookupMessage = viewModel::dismissArtistLookupMessage,
+                    onDismissManualArtistSearch = viewModel::dismissManualArtistSearch,
+                    onManualArtistSearchQueryChange = viewModel::updateManualArtistSearchQuery,
+                    onManualArtistSearchExecute = viewModel::searchManualArtistCandidates,
+                    onManualArtistCandidateSelected = viewModel::applyManualArtistCandidate,
                     onAlbumClick = { album ->
-                        navController.navigate(VerseFlowDestination.AlbumDetail.createRoute(album.id))
+                        openAlbumRoute(album.id)
                     },
                     onSongClick = { song ->
                         viewModel.playSong(song.id, queueSongIds = it.topTrackIds)
                     },
                     onArtistClick = { relatedArtist ->
-                        navController.navigate(VerseFlowDestination.ArtistDetail.createRoute(relatedArtist.id))
+                        openArtistRoute(relatedArtist.id)
                     },
                     onRemoveFromVerseFlow = viewModel::requestRemoveFromVerseFlow,
                     onAddSongToPlaylist = viewModel::addSongToPlaylist,
@@ -368,6 +407,7 @@ fun VerseFlowNavHost(
                 onWifiDownloadsChange = viewModel::updateWifiDownloads,
                 onExplicitContentChange = viewModel::updateExplicitContent,
                 onLanguageSelected = viewModel::updateLanguage,
+                onUseTestArtworkChange = viewModel::updateUseTestArtwork,
             )
         }
     }

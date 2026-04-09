@@ -523,6 +523,8 @@ fun AlbumCard(
     surfaceVariantAlpha: Float = 0.48f,
     topArtworkBleed: Boolean = false,
     artworkHeight: Dp = 220.dp,
+    artworkUriOverride: String? = null,
+    fallbackMediaUri: String? = null,
 ) {
     GlassPanel(
         modifier = modifier
@@ -541,7 +543,8 @@ fun AlbumCard(
                     title = album.title,
                     subtitle = artistName,
                     palette = album.palette,
-                    artworkUri = album.artworkUri,
+                    artworkUri = artworkUriOverride ?: album.artworkUri,
+                    fallbackMediaUri = fallbackMediaUri,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(artworkHeight),
@@ -589,7 +592,8 @@ fun AlbumCard(
                     title = album.title,
                     subtitle = artistName,
                     palette = album.palette,
-                    artworkUri = album.artworkUri,
+                    artworkUri = artworkUriOverride ?: album.artworkUri,
+                    fallbackMediaUri = fallbackMediaUri,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(artworkHeight),
@@ -760,11 +764,24 @@ fun ArtistCard(
                     .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = artist.name.take(2).uppercase(),
-                    style = MaterialTheme.typography.displayMedium,
-                    color = Color.White.copy(alpha = 0.92f),
-                )
+                if (artist.photoUri != null) {
+                    AlbumArtwork(
+                        title = artist.name,
+                        subtitle = artist.genre,
+                        palette = artist.heroPalette,
+                        artworkUri = artist.photoUri,
+                        modifier = Modifier.fillMaxSize(),
+                        shape = CircleShape,
+                        borderColor = Color.Transparent,
+                        showOverlay = false,
+                    )
+                } else {
+                    Text(
+                        text = artist.name.take(2).uppercase(),
+                        style = MaterialTheme.typography.displayMedium,
+                        color = Color.White.copy(alpha = 0.92f),
+                    )
+                }
             }
             Text(
                 text = artist.name,

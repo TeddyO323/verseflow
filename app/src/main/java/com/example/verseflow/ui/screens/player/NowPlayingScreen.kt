@@ -4,13 +4,17 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,12 +41,15 @@ import com.example.verseflow.model.VerseFlowUiState
 import com.example.verseflow.ui.components.AlbumArtwork
 import com.example.verseflow.ui.components.ArtworkReactiveBackdrop
 import com.example.verseflow.ui.components.EmptyStatePanel
+import com.example.verseflow.ui.components.GlassPanel
 import com.example.verseflow.ui.components.GlowIconButton
 import com.example.verseflow.ui.components.PlaybackControls
 import com.example.verseflow.ui.components.PlaybackProgress
 import com.example.verseflow.ui.components.PlaybackQueueSheet
 import com.example.verseflow.ui.components.SongOverflowMenu
 import com.example.verseflow.ui.components.WaveVisualizer
+import com.example.verseflow.ui.car.rememberCarModeArtworkUri
+import com.example.verseflow.ui.car.rememberIsCarLandscapeMode
 import kotlin.math.abs
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -73,6 +80,8 @@ fun NowPlayingScreen(
     val song = uiState.playback.currentSong
     val artistName = song?.let { uiState.artistsById[it.artistId]?.name.orEmpty() }.orEmpty()
     val albumTitle = song?.let { uiState.albumsById[it.albumId]?.title.orEmpty() }.orEmpty()
+    val isCarLandscapeMode = rememberIsCarLandscapeMode()
+    val carArtworkUri = rememberCarModeArtworkUri(uiState.profile.settings.useTestArtwork)
     if (song == null) {
         EmptyStatePanel(
             title = "Nothing is playing",
@@ -97,15 +106,42 @@ fun NowPlayingScreen(
         )
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         ArtworkReactiveBackdrop(
             palette = song.palette,
             artworkUri = song.artworkUri,
             fallbackMediaUri = song.mediaUri,
             modifier = Modifier.fillMaxSize(),
         )
+        if (isCarLandscapeMode) {
+            CarNowPlayingLayout(
+                song = song,
+                artistName = artistName,
+                albumTitle = albumTitle,
+                artworkUriOverride = carArtworkUri,
+                uiState = uiState,
+                onBack = onBack,
+                onPlayPause = onPlayPause,
+                onNext = onNext,
+                onPrevious = onPrevious,
+                onSeek = onSeek,
+                onToggleShuffle = onToggleShuffle,
+                onCycleRepeat = onCycleRepeat,
+                onToggleLike = onToggleLike,
+                onLyricsRequested = onLyricsRequested,
+                onQueueVisibilityChange = onQueueVisibilityChange,
+                onSearchRequested = onSearchRequested,
+                onRemoveFromVerseFlow = onRemoveFromVerseFlow,
+                onAddSongToPlaylist = onAddSongToPlaylist,
+                onAddSongToPlayQueue = onAddSongToPlayQueue,
+                onToggleSongLike = onToggleSongLike,
+                onDeleteFromStorage = onDeleteFromStorage,
+                onEditMusicInfo = onEditMusicInfo,
+                onArtistRequested = onArtistRequested,
+                onAlbumRequested = onAlbumRequested,
+            )
+            return
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize(),
@@ -275,6 +311,189 @@ fun NowPlayingScreen(
                     onLike = onToggleLike,
                     onQueue = { onQueueVisibilityChange(true) },
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CarNowPlayingLayout(
+    song: Song,
+    artistName: String,
+    albumTitle: String,
+    artworkUriOverride: String?,
+    uiState: VerseFlowUiState,
+    onBack: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onToggleShuffle: () -> Unit,
+    onCycleRepeat: () -> Unit,
+    onToggleLike: () -> Unit,
+    onLyricsRequested: () -> Unit,
+    onQueueVisibilityChange: (Boolean) -> Unit,
+    onSearchRequested: () -> Unit,
+    onRemoveFromVerseFlow: (songId: String) -> Unit,
+    onAddSongToPlaylist: (playlistId: String, songId: String) -> Unit,
+    onAddSongToPlayQueue: (songId: String) -> Unit,
+    onToggleSongLike: (songId: String) -> Unit,
+    onDeleteFromStorage: (songId: String) -> Unit,
+    onEditMusicInfo: (songId: String) -> Unit,
+    onArtistRequested: (String) -> Unit,
+    onAlbumRequested: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        GlassPanel(
+            modifier = Modifier
+                .weight(0.42f)
+                .fillMaxHeight(),
+            shape = RectangleShape,
+        ) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    AlbumArtwork(
+                        title = song.title,
+                        subtitle = artistName,
+                        palette = song.palette,
+                        artworkUri = artworkUriOverride ?: song.artworkUri,
+                        fallbackMediaUri = if (artworkUriOverride != null) null else song.mediaUri,
+                        modifier = Modifier.fillMaxSize(),
+                        shape = RectangleShape,
+                        borderColor = Color.Transparent,
+                    showOverlay = false,
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    GlowIconButton(
+                        icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        onClick = onBack,
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        GlowIconButton(
+                            icon = Icons.Rounded.Search,
+                            contentDescription = "Search",
+                            onClick = onSearchRequested,
+                        )
+                        GlowIconButton(
+                            icon = Icons.AutoMirrored.Rounded.QueueMusic,
+                            contentDescription = "Queue",
+                            onClick = { onQueueVisibilityChange(true) },
+                        )
+                        SongOverflowMenu(
+                            song = song,
+                            artistName = artistName,
+                            albumTitle = albumTitle,
+                            playlists = uiState.playlists,
+                            isFavorite = song.id in uiState.playback.likedSongIds,
+                            onRemoveFromVerseFlow = onRemoveFromVerseFlow,
+                            onAddToPlaylist = onAddSongToPlaylist,
+                            onAddToPlayQueue = onAddSongToPlayQueue,
+                            onToggleFavorite = onToggleSongLike,
+                            onOpenArtist = { onArtistRequested(song.artistId) },
+                            onOpenAlbum = { onAlbumRequested(song.albumId) },
+                            onDeleteFromStorage = onDeleteFromStorage,
+                            onEditMusicInfo = onEditMusicInfo,
+                        )
+                    }
+                }
+            }
+        }
+        GlassPanel(
+            modifier = Modifier
+                .weight(0.58f)
+                .fillMaxHeight(),
+            shape = RectangleShape,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp, vertical = 22.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = song.title,
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                initialDelayMillis = 500,
+                                repeatDelayMillis = 900,
+                            ),
+                    )
+                    Text(
+                        text = artistName,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = albumTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    WaveVisualizer(
+                        isPlaying = uiState.playback.isPlaying,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .size(width = 88.dp, height = 34.dp),
+                    )
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    PlaybackProgress(
+                        positionMs = uiState.playback.positionMs,
+                        durationMs = song.durationMs,
+                        onSeek = onSeek,
+                    )
+                    PlaybackControls(
+                        isPlaying = uiState.playback.isPlaying,
+                        isShuffled = uiState.playback.isShuffled,
+                        repeatMode = uiState.playback.repeatMode,
+                        isLiked = song.id in uiState.playback.likedSongIds,
+                        onShuffle = onToggleShuffle,
+                        onPrevious = onPrevious,
+                        onPlayPause = onPlayPause,
+                        onNext = onNext,
+                        onRepeat = onCycleRepeat,
+                        onLike = onToggleLike,
+                        onQueue = { onQueueVisibilityChange(true) },
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        GlowIconButton(
+                            icon = Icons.AutoMirrored.Rounded.QueueMusic,
+                            contentDescription = "Open lyrics",
+                            onClick = onLyricsRequested,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            containerColor = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
             }
         }
     }

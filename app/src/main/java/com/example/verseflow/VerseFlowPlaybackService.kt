@@ -104,9 +104,11 @@ class VerseFlowPlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = librarySession
 
     override fun onTaskRemoved(rootIntent: android.content.Intent?) {
-        if (!player.playWhenReady || player.mediaItemCount == 0) {
-            stopSelf()
-        }
+        player.pause()
+        player.stop()
+        player.clearMediaItems()
+        persistPlaybackSession()
+        stopSelf()
     }
 
     override fun onDestroy() {
