@@ -27,6 +27,7 @@ data class DesktopTrack(
     val path: String,
     val isrc: String? = null,
     val addedAtMs: Long = 0L,
+    val releaseDate: String? = null,
     val title: String,
     val artist: String,
     val artistCredits: List<String> = listOf(artist),
@@ -61,6 +62,7 @@ data class DesktopAlbumSummary(
     val title: String,
     val artist: String,
     val genre: String,
+    val releaseDate: String? = null,
     val trackCount: Int,
     val durationMs: Long,
     val newestAddedAtMs: Long,
@@ -195,6 +197,7 @@ fun summarizeAlbums(tracks: List<DesktopTrack>): List<DesktopAlbumSummary> =
                 title = first.album,
                 artist = first.albumArtist,
                 genre = groupedTracks.map(DesktopTrack::genre).groupingBy { it }.eachCount().maxByOrNull { it.value }?.key ?: "Unclassified",
+                releaseDate = groupedTracks.mapNotNull(DesktopTrack::releaseDate).firstOrNull(),
                 trackCount = groupedTracks.size,
                 durationMs = groupedTracks.sumOf(DesktopTrack::durationMs),
                 newestAddedAtMs = groupedTracks.maxOfOrNull(DesktopTrack::addedAtMs) ?: 0L,
@@ -256,6 +259,7 @@ private fun readDesktopTrack(path: Path): DesktopTrack? {
         }
         val album = tag?.getFirst(FieldKey.ALBUM).orEmpty().ifBlank { albumFallback }
         val genre = tag?.getFirst(FieldKey.GENRE).orEmpty().ifBlank { "Unclassified" }
+        val releaseDate = tag?.getFirst(FieldKey.YEAR).orEmpty().trim().ifBlank { null }
         val durationMs = ((header?.trackLength ?: 0) * 1000L).coerceAtLeast(0L)
         val localLyrics = loadDesktopLocalLyrics(path)
         val artworkBytes = tag?.firstArtwork?.binaryData?.takeIf { it.isNotEmpty() }
@@ -266,6 +270,7 @@ private fun readDesktopTrack(path: Path): DesktopTrack? {
             path = path.toString(),
             isrc = tag?.getFirst(FieldKey.ISRC).orEmpty().ifBlank { null },
             addedAtMs = addedAtMs,
+            releaseDate = releaseDate,
             title = title,
             artist = artist,
             artistCredits = artistCredits,
@@ -291,6 +296,7 @@ private fun readDesktopTrack(path: Path): DesktopTrack? {
             path = path.toString(),
             isrc = null,
             addedAtMs = runCatching { Files.getLastModifiedTime(path).toMillis() }.getOrDefault(0L),
+            releaseDate = null,
             title = fileNameTitle,
             artist = artistFallback,
             artistCredits = artistCredits,

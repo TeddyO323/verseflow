@@ -37,8 +37,14 @@ enum class LyricsDisplayMode(val label: String) {
 enum class ThemePreset(val label: String) {
     Nebula("Nebula Dark"),
     Eclipse("Eclipse OLED"),
-    Aurora("Aurora Glow"),
+    Crimson("Crimson Velvet"),
+    Solar("Solar Gold"),
     Cobalt("Cobalt Luxe"),
+    Arctic("Arctic Light"),
+    Rose("Rose Studio"),
+    Mint("Mint Daybreak"),
+    Amber("Amber Paper"),
+    Mono("Mono Mist"),
 }
 
 enum class MusicCatalogSource {

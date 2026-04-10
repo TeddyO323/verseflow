@@ -1,10 +1,11 @@
 package com.example.verseflow.ui.car
 
+import java.io.File
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import android.content.pm.ApplicationInfo
 import com.example.verseflow.R
 
 @Composable
@@ -23,14 +24,26 @@ fun rememberIsCarLandscapeMode(): Boolean {
 @Composable
 fun rememberCarModeArtworkUri(useTestArtwork: Boolean): String? {
     val context = LocalContext.current
-    val isDebugBuild = remember(context) {
-        (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-    }
     return remember(useTestArtwork, context.packageName) {
-        if (isDebugBuild && useTestArtwork) {
-            "android.resource://${context.packageName}/${R.drawable.test_cover_art}"
+        if (useTestArtwork) {
+            val workspaceTestArt = File("/Users/aliceakinyiolango/Documents/GitHub/verseflow/testalbumart.jpg")
+            if (workspaceTestArt.exists()) {
+                workspaceTestArt.toURI().toString()
+            } else {
+                "android.resource://${context.packageName}/${R.drawable.test_cover_art}"
+            }
         } else {
             null
         }
+    }
+}
+
+@Composable
+fun ProvideCarTestArtwork(
+    enabled: Boolean,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(LocalCarUseTestArtwork provides enabled) {
+        content()
     }
 }

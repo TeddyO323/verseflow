@@ -66,11 +66,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.verseflow.ui.components.ArtworkReactiveBackdrop
 import com.example.verseflow.ui.components.GlassPanel
 import com.example.verseflow.ui.components.MiniPlayerBar
 import com.example.verseflow.ui.components.VerseFilterChip
-import com.example.verseflow.ui.car.rememberIsCarLandscapeMode
+import com.example.verseflow.ui.car.ProvideCarTestArtwork
 import com.example.verseflow.ui.navigation.VerseFlowDestination
 import com.example.verseflow.ui.navigation.VerseFlowNavHost
 import com.example.verseflow.ui.theme.VerseFlowTheme
@@ -116,8 +115,6 @@ fun VerseFlowApp() {
     val uiState = viewModel.uiState
     val songActionUiState = viewModel.songActionUiState
     val currentSong = uiState.playback.currentSong
-    val activePalette = currentSong?.palette ?: uiState.featuredAlbums.firstOrNull()?.palette
-    val isCarLandscapeMode = rememberIsCarLandscapeMode()
     val topLevelRoutes = remember {
         setOf(
             VerseFlowDestination.Home.route,
@@ -200,6 +197,7 @@ fun VerseFlowApp() {
     }
 
     VerseFlowTheme(preset = uiState.profile.settings.themePreset) {
+        ProvideCarTestArtwork(enabled = uiState.profile.settings.useTestArtwork) {
         songActionUiState.noticeTitle?.let { title ->
             AlertDialog(
                 onDismissRequest = viewModel::dismissSongActionNotice,
@@ -463,17 +461,8 @@ fun VerseFlowApp() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black),
+                    .background(MaterialTheme.colorScheme.background),
             ) {
-                activePalette?.let {
-                    ArtworkReactiveBackdrop(
-                        palette = it,
-                        artworkUri = currentSong?.artworkUri,
-                        fallbackMediaUri = currentSong?.mediaUri,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     containerColor = Color.Transparent,
@@ -512,20 +501,9 @@ fun VerseFlowApp() {
                         },
                         modifier = Modifier.padding(innerPadding),
                     )
-                    if (isCarLandscapeMode && currentRoute in topLevelRoutes) {
-                        CarModeTopBar(
-                            currentRoute = currentRoute,
-                            onNavigate = { route ->
-                                navController.navigateToDrawerDestination(route)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .statusBarsPadding()
-                                .padding(horizontal = 18.dp, vertical = 14.dp),
-                        )
-                    }
                 }
             }
+        }
         }
     }
 }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -82,6 +83,8 @@ fun NowPlayingScreen(
     val albumTitle = song?.let { uiState.albumsById[it.albumId]?.title.orEmpty() }.orEmpty()
     val isCarLandscapeMode = rememberIsCarLandscapeMode()
     val carArtworkUri = rememberCarModeArtworkUri(uiState.profile.settings.useTestArtwork)
+    val effectiveArtworkUri = carArtworkUri ?: song?.artworkUri
+    val effectiveFallbackMediaUri = if (carArtworkUri != null) null else song?.mediaUri
     if (song == null) {
         EmptyStatePanel(
             title = "Nothing is playing",
@@ -109,8 +112,8 @@ fun NowPlayingScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         ArtworkReactiveBackdrop(
             palette = song.palette,
-            artworkUri = song.artworkUri,
-            fallbackMediaUri = song.mediaUri,
+            artworkUri = effectiveArtworkUri,
+            fallbackMediaUri = effectiveFallbackMediaUri,
             modifier = Modifier.fillMaxSize(),
         )
         if (isCarLandscapeMode) {
@@ -290,7 +293,7 @@ fun NowPlayingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 12.dp),
+                    .padding(top = 20.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 PlaybackProgress(
@@ -298,19 +301,21 @@ fun NowPlayingScreen(
                     durationMs = song.durationMs,
                     onSeek = onSeek,
                 )
-                PlaybackControls(
-                    isPlaying = uiState.playback.isPlaying,
-                    isShuffled = uiState.playback.isShuffled,
-                    repeatMode = uiState.playback.repeatMode,
-                    isLiked = song.id in uiState.playback.likedSongIds,
-                    onShuffle = onToggleShuffle,
-                    onPrevious = onPrevious,
-                    onPlayPause = onPlayPause,
-                    onNext = onNext,
-                    onRepeat = onCycleRepeat,
-                    onLike = onToggleLike,
-                    onQueue = { onQueueVisibilityChange(true) },
-                )
+                Box(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    PlaybackControls(
+                        isPlaying = uiState.playback.isPlaying,
+                        isShuffled = uiState.playback.isShuffled,
+                        repeatMode = uiState.playback.repeatMode,
+                        isLiked = song.id in uiState.playback.likedSongIds,
+                        onShuffle = onToggleShuffle,
+                        onPrevious = onPrevious,
+                        onPlayPause = onPlayPause,
+                        onNext = onNext,
+                        onRepeat = onCycleRepeat,
+                        onLike = onToggleLike,
+                        onQueue = { onQueueVisibilityChange(true) },
+                    )
+                }
             }
         }
     }
@@ -415,58 +420,66 @@ private fun CarNowPlayingLayout(
                 }
             }
         }
-        GlassPanel(
+        Column(
             modifier = Modifier
                 .weight(0.58f)
-                .fillMaxHeight(),
-            shape = RectangleShape,
+                .fillMaxHeight()
+                .padding(horizontal = 24.dp, vertical = 22.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 24.dp, vertical = 22.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = song.title,
-                        style = MaterialTheme.typography.displaySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Clip,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .basicMarquee(
-                                iterations = Int.MAX_VALUE,
-                                initialDelayMillis = 500,
-                                repeatDelayMillis = 900,
-                            ),
-                    )
-                    Text(
-                        text = artistName,
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = albumTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.secondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    WaveVisualizer(
-                        isPlaying = uiState.playback.isPlaying,
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .size(width = 88.dp, height = 34.dp),
-                    )
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                    PlaybackProgress(
-                        positionMs = uiState.playback.positionMs,
-                        durationMs = song.durationMs,
-                        onSeek = onSeek,
-                    )
+                Text(
+                    text = song.title,
+                    style = MaterialTheme.typography.displaySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .basicMarquee(
+                            iterations = Int.MAX_VALUE,
+                            initialDelayMillis = 500,
+                            repeatDelayMillis = 900,
+                        ),
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = artistName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = albumTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+                WaveVisualizer(
+                    isPlaying = uiState.playback.isPlaying,
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .size(width = 88.dp, height = 34.dp),
+                )
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                PlaybackProgress(
+                    positionMs = uiState.playback.positionMs,
+                    durationMs = song.durationMs,
+                    onSeek = onSeek,
+                )
+                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
                     PlaybackControls(
                         isPlaying = uiState.playback.isPlaying,
                         isShuffled = uiState.playback.isShuffled,
@@ -486,7 +499,7 @@ private fun CarNowPlayingLayout(
                         horizontalArrangement = Arrangement.End,
                     ) {
                         GlowIconButton(
-                            icon = Icons.AutoMirrored.Rounded.QueueMusic,
+                            icon = Icons.Rounded.Lyrics,
                             contentDescription = "Open lyrics",
                             onClick = onLyricsRequested,
                             tint = MaterialTheme.colorScheme.onPrimary,

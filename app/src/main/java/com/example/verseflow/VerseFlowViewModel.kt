@@ -21,6 +21,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.example.verseflow.data.DeviceAudioCatalog
+import com.example.verseflow.data.DeviceCatalogCacheStore
 import com.example.verseflow.data.DeviceAudioStoreLoader
 import com.example.verseflow.data.ArtistInfoImportRepository
 import com.example.verseflow.data.ArtistProfileOverride
@@ -97,6 +98,7 @@ class VerseFlowViewModel(
     }
 
     private val deviceAudioLoader = DeviceAudioStoreLoader(application.applicationContext)
+    private val deviceCatalogCacheStore = DeviceCatalogCacheStore(application.applicationContext)
     private val lyricsRepository = LrcLibLyricsRepository()
     private val lyricsCacheStore = LyricsCacheStore(application.applicationContext)
     private val playbackSessionStore = PlaybackSessionStore(application.applicationContext)
@@ -107,11 +109,16 @@ class VerseFlowViewModel(
     private val artistInfoImportRepository = ArtistInfoImportRepository(application.applicationContext)
     private var player: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
+    private val initialAudioPermissionGranted = application.hasAudioPermission()
+    private val cachedDeviceCatalog = if (initialAudioPermissionGranted) {
+        deviceCatalogCacheStore.load()
+    } else {
+        null
+    }
     private val defaultProfile = userPreferencesStore.load(repository.profile())
     private val persistedLibraryCustomizations = libraryCustomizationStore.load()
-    private val initialAudioPermissionGranted = application.hasAudioPermission()
     private val emptyCatalog = emptyCatalogData()
-    private var activeCatalog = emptyCatalog
+    private var activeCatalog = cachedDeviceCatalog?.toCatalogData() ?: emptyCatalog
     private var pendingPlaybackSession: SavedPlaybackSession? = playbackSessionStore.load()
     private var hiddenSongIds: Set<String> = persistedLibraryCustomizations.hiddenSongIds
     private var songMetadataOverrides: Map<String, SongMetadataOverride> = persistedLibraryCustomizations.songMetadataOverrides
@@ -126,14 +133,22 @@ class VerseFlowViewModel(
             catalog = activeCatalog.applyLibraryCustomizations(hiddenSongIds, songMetadataOverrides),
             previousState = null,
             audioPermissionGranted = initialAudioPermissionGranted,
-            hasScannedDeviceAudio = false,
+            hasScannedDeviceAudio = initialAudioPermissionGranted && cachedDeviceCatalog != null,
             isScanningDeviceAudio = false,
             catalogSource = MusicCatalogSource.Device,
-            playback = initialPlaybackFor(
-                songs = activeCatalog.applyLibraryCustomizations(hiddenSongIds, songMetadataOverrides).songs,
-                syncedLyricsDefault = defaultProfile.settings.showSyncedLyricsByDefault,
-                shouldAutoplay = false,
-            ),
+            playback = if (cachedDeviceCatalog != null) {
+                restoredPlaybackFor(
+                    songs = activeCatalog.applyLibraryCustomizations(hiddenSongIds, songMetadataOverrides).songs,
+                    syncedLyricsDefault = defaultProfile.settings.showSyncedLyricsByDefault,
+                    likedSongIds = emptySet(),
+                )
+            } else {
+                initialPlaybackFor(
+                    songs = activeCatalog.applyLibraryCustomizations(hiddenSongIds, songMetadataOverrides).songs,
+                    syncedLyricsDefault = defaultProfile.settings.showSyncedLyricsByDefault,
+                    shouldAutoplay = false,
+                )
+            },
         ),
     )
         private set
@@ -150,7 +165,7 @@ class VerseFlowViewModel(
     init {
         initializeMediaController()
         startPlaybackTicker()
-        if (initialAudioPermissionGranted) {
+        if (initialAudioPermissionGranted && cachedDeviceCatalog == null) {
             refreshDeviceLibrary()
         }
     }
@@ -233,6 +248,7 @@ class VerseFlowViewModel(
         viewModelScope.launch {
             uiState = uiState.copy(isScanningDeviceAudio = true)
             val deviceCatalog = deviceAudioLoader.load()
+            deviceCatalogCacheStore.save(deviceCatalog)
             stopLocalPlayback()
             activeCatalog = deviceCatalog.toCatalogData()
             val effectiveCatalog = activeCatalog.applyLibraryCustomizations(hiddenSongIds, songMetadataOverrides)
@@ -431,13 +447,39 @@ class VerseFlowViewModel(
         ) + playHistoryEntries
         playHistoryEntries = nextHistory.take(240)
         playHistoryStore.save(playHistoryEntries)
-        uiState = uiState.copy(playHistoryEntries = playHistoryEntries)
+        val homeCollections = resolveHomeCollections(
+            songs = uiState.songs,
+            albums = uiState.albums,
+            playHistory = playHistoryEntries,
+            fallbackFeaturedAlbums = activeCatalog.featuredAlbums,
+            fallbackRecentlyPlayed = activeCatalog.recentlyPlayed,
+            fallbackTrendingSongs = activeCatalog.trendingSongs,
+        )
+        uiState = uiState.copy(
+            playHistoryEntries = playHistoryEntries,
+            featuredAlbums = homeCollections.featuredAlbums,
+            recentlyPlayed = homeCollections.recentlyPlayed,
+            trendingSongs = homeCollections.trendingSongs,
+        )
     }
 
     fun clearPlayHistory() {
         playHistoryEntries = emptyList()
         playHistoryStore.save(emptyList())
-        uiState = uiState.copy(playHistoryEntries = emptyList())
+        val homeCollections = resolveHomeCollections(
+            songs = uiState.songs,
+            albums = uiState.albums,
+            playHistory = emptyList(),
+            fallbackFeaturedAlbums = activeCatalog.featuredAlbums,
+            fallbackRecentlyPlayed = activeCatalog.recentlyPlayed,
+            fallbackTrendingSongs = activeCatalog.trendingSongs,
+        )
+        uiState = uiState.copy(
+            playHistoryEntries = emptyList(),
+            featuredAlbums = homeCollections.featuredAlbums,
+            recentlyPlayed = homeCollections.recentlyPlayed,
+            trendingSongs = homeCollections.trendingSongs,
+        )
     }
 
     private fun flushCurrentPlayHistory() {
@@ -1701,6 +1743,14 @@ class VerseFlowViewModel(
             availableSongIds = songsById.keys,
         )
         val playlistsById = mergedPlaylists.associateBy(Playlist::id)
+        val homeCollections = resolveHomeCollections(
+            songs = catalog.songs,
+            albums = catalog.albums,
+            playHistory = playHistoryEntries,
+            fallbackFeaturedAlbums = catalog.featuredAlbums,
+            fallbackRecentlyPlayed = catalog.recentlyPlayed,
+            fallbackTrendingSongs = catalog.trendingSongs,
+        )
         val lyricsStatusBySongId = catalog.songs.associate { song ->
             val previousStatus = previousState?.lyricsStatusBySongId?.get(song.id)
             song.id to when {
@@ -1721,9 +1771,9 @@ class VerseFlowViewModel(
             artistsById = artistsById,
             playlists = mergedPlaylists,
             playlistsById = playlistsById,
-            featuredAlbums = catalog.featuredAlbums,
-            recentlyPlayed = catalog.recentlyPlayed,
-            trendingSongs = catalog.trendingSongs,
+            featuredAlbums = homeCollections.featuredAlbums,
+            recentlyPlayed = homeCollections.recentlyPlayed,
+            trendingSongs = homeCollections.trendingSongs,
             favoritePlaylists = catalog.favoritePlaylists.mapNotNull { favoritePlaylist ->
                 playlistsById[favoritePlaylist.id]
             },
@@ -1821,6 +1871,71 @@ private data class CatalogData(
     val favoritePlaylists: List<Playlist>,
     val trendingCategories: List<String>,
 )
+
+private data class HomeCollections(
+    val featuredAlbums: List<Album>,
+    val recentlyPlayed: List<Song>,
+    val trendingSongs: List<Song>,
+)
+
+private fun resolveHomeCollections(
+    songs: List<Song>,
+    albums: List<Album>,
+    playHistory: List<PlayHistoryEntry>,
+    fallbackFeaturedAlbums: List<Album>,
+    fallbackRecentlyPlayed: List<Song>,
+    fallbackTrendingSongs: List<Song>,
+): HomeCollections {
+    val songsById = songs.associateBy(Song::id)
+    val albumsById = albums.associateBy(Album::id)
+    val catalogRecentSongs = songs.take(24)
+    val catalogRecentAlbums = catalogRecentSongs
+        .mapNotNull { song -> albumsById[song.albumId] }
+        .distinctBy(Album::id)
+    val recentSongs = playHistory
+        .sortedByDescending(PlayHistoryEntry::playedAtMs)
+        .mapNotNull { entry -> songsById[entry.songId] }
+        .distinctBy(Song::id)
+    val recentAlbums = recentSongs
+        .mapNotNull { song -> albumsById[song.albumId] }
+        .distinctBy(Album::id)
+    val trendingByHistory = playHistory
+        .groupBy(PlayHistoryEntry::songId)
+        .entries
+        .sortedByDescending { (_, entries) ->
+            entries.sumOf(PlayHistoryEntry::listenedMs) + (entries.size * 30_000L)
+        }
+        .mapNotNull { (songId, _) -> songsById[songId] }
+        .distinctBy(Song::id)
+
+    val rotationSeed = (System.currentTimeMillis() / 14_400_000L).toInt() + playHistory.size
+    val rotatedAlbums = (catalogRecentAlbums + albums)
+        .distinctBy(Album::id)
+        .rotateBySeed(rotationSeed)
+        .take(8)
+    val rotatedSongs = (catalogRecentSongs + songs)
+        .distinctBy(Song::id)
+        .rotateBySeed(rotationSeed)
+        .take(10)
+
+    return HomeCollections(
+        featuredAlbums = (recentAlbums + rotatedAlbums + catalogRecentAlbums + fallbackFeaturedAlbums)
+            .distinctBy(Album::id)
+            .take(5),
+        recentlyPlayed = (recentSongs + catalogRecentSongs + fallbackRecentlyPlayed)
+            .distinctBy(Song::id)
+            .take(6),
+        trendingSongs = (trendingByHistory + rotatedSongs + catalogRecentSongs + fallbackTrendingSongs)
+            .distinctBy(Song::id)
+            .take(8),
+    )
+}
+
+private fun <T> List<T>.rotateBySeed(seed: Int): List<T> {
+    if (isEmpty()) return this
+    val offset = ((seed % size) + size) % size
+    return drop(offset) + take(offset)
+}
 
 private fun MusicRepository.toCatalog(): CatalogData {
     val songs = songs()

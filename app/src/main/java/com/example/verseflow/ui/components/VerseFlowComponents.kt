@@ -86,6 +86,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -100,6 +101,9 @@ import com.example.verseflow.model.Playlist
 import com.example.verseflow.model.RepeatMode as PlaybackRepeatMode
 import com.example.verseflow.model.Song
 import com.example.verseflow.model.SongSource
+import com.example.verseflow.ui.car.LocalCarUseTestArtwork
+import com.example.verseflow.ui.car.rememberCarModeArtworkUri
+import com.example.verseflow.ui.car.rememberIsCarLandscapeMode
 import com.example.verseflow.ui.navigation.TopLevelDestination
 import com.example.verseflow.ui.navigation.topLevelDestinations
 import kotlin.math.roundToInt
@@ -188,6 +192,7 @@ fun ArtworkReactiveBackdrop(
     artworkUri: String? = null,
     fallbackMediaUri: String? = null,
 ) {
+    val isCarLandscapeMode = rememberIsCarLandscapeMode()
     val context = LocalContext.current
     val artwork by produceState<androidx.compose.ui.graphics.ImageBitmap?>(
         initialValue = null,
@@ -213,6 +218,14 @@ fun ArtworkReactiveBackdrop(
     }
     val reactivePalette = backdrop?.palette ?: palette
     val isMonochromeArtwork = backdrop?.isMonochrome == true
+    val backgroundScale = if (isCarLandscapeMode) 2.05f else 1.72f
+    val backgroundAlpha = if (isCarLandscapeMode) {
+        if (isMonochromeArtwork) 0.80f else 0.74f
+    } else {
+        if (isMonochromeArtwork) 0.78f else 0.72f
+    }
+    val backdropBlur = if (isCarLandscapeMode) 190.dp else 168.dp
+    val foregroundAlpha = if (isCarLandscapeMode) 0.02f else if (isMonochromeArtwork) 0.02f else 0.03f
 
     Box(modifier = modifier.background(Color.Black)) {
         if (artwork != null) {
@@ -223,11 +236,11 @@ fun ArtworkReactiveBackdrop(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer(
-                        scaleX = 1.35f,
-                        scaleY = 1.35f,
-                        alpha = if (isMonochromeArtwork) 0.96f else 0.92f,
+                        scaleX = backgroundScale,
+                        scaleY = backgroundScale,
+                        alpha = backgroundAlpha,
                     )
-                    .blur(120.dp),
+                    .blur(backdropBlur),
             )
             Image(
                 bitmap = artwork!!,
@@ -235,7 +248,7 @@ fun ArtworkReactiveBackdrop(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer(alpha = if (isMonochromeArtwork) 0.04f else 0.10f),
+                    .graphicsLayer(alpha = foregroundAlpha),
             )
             Box(
                 modifier = Modifier
@@ -243,9 +256,13 @@ fun ArtworkReactiveBackdrop(
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                Color.Black.copy(alpha = 0.16f),
-                                reactivePalette.background.copy(alpha = if (isMonochromeArtwork) 0.08f else 0.18f),
-                                Color.Black.copy(alpha = 0.52f),
+                                Color.Black.copy(alpha = if (isCarLandscapeMode) 0.16f else 0.28f),
+                                reactivePalette.background.copy(alpha = if (isCarLandscapeMode) {
+                                    if (isMonochromeArtwork) 0.08f else 0.18f
+                                } else {
+                                    if (isMonochromeArtwork) 0.12f else 0.22f
+                                }),
+                                Color.Black.copy(alpha = if (isCarLandscapeMode) 0.52f else 0.72f),
                             ),
                         ),
                     ),
@@ -298,6 +315,10 @@ fun GlassPanel(
     shadowElevation: Dp = 18.dp,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    val isCarLandscapeMode = rememberIsCarLandscapeMode()
+    val effectiveSurfaceAlpha = if (isCarLandscapeMode) maxOf(surfaceAlpha, 0.96f) else maxOf(surfaceAlpha, 0.86f)
+    val effectiveSurfaceVariantAlpha = if (isCarLandscapeMode) maxOf(surfaceVariantAlpha, 0.92f) else maxOf(surfaceVariantAlpha, 0.76f)
+    val effectiveBorderAlpha = if (isCarLandscapeMode) maxOf(borderAlpha, 0.18f) else maxOf(borderAlpha, 0.16f)
     Box(
         modifier = modifier
             .shadow(shadowElevation, shape, clip = false)
@@ -305,14 +326,14 @@ fun GlassPanel(
             .background(
                 Brush.linearGradient(
                     listOf(
-                        MaterialTheme.colorScheme.surface.copy(alpha = surfaceAlpha),
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = surfaceVariantAlpha),
+                        MaterialTheme.colorScheme.surface.copy(alpha = effectiveSurfaceAlpha),
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = effectiveSurfaceVariantAlpha),
                     ),
                 ),
             )
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = borderAlpha),
+                color = Color.White.copy(alpha = effectiveBorderAlpha),
                 shape = shape,
             ),
         content = content,
@@ -369,6 +390,10 @@ fun AlbumArtwork(
     showOverlay: Boolean = true,
 ) {
     val context = LocalContext.current
+    val useTestArtwork = LocalCarUseTestArtwork.current
+    val testArtworkUri = rememberCarModeArtworkUri(useTestArtwork)
+    val effectiveArtworkUri = testArtworkUri ?: artworkUri
+    val effectiveFallbackMediaUri = if (testArtworkUri != null) null else fallbackMediaUri
     val rotation by rememberInfiniteTransition(label = "artRotation").animateFloat(
         initialValue = 0f,
         targetValue = 360f,
@@ -380,13 +405,13 @@ fun AlbumArtwork(
     )
     val artwork by produceState<androidx.compose.ui.graphics.ImageBitmap?>(
         initialValue = null,
-        artworkUri,
-        fallbackMediaUri,
+        effectiveArtworkUri,
+        effectiveFallbackMediaUri,
     ) {
         value = LocalArtworkResolver.loadArtwork(
             context = context,
-            artworkUri = artworkUri,
-            fallbackMediaUri = fallbackMediaUri,
+            artworkUri = effectiveArtworkUri,
+            fallbackMediaUri = effectiveFallbackMediaUri,
         )
     }
     Box(
@@ -1171,7 +1196,7 @@ fun GlowIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     tint: Color = MaterialTheme.colorScheme.onSurface,
-    containerColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.56f),
+    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f),
 ) {
     Box(
         modifier = modifier
@@ -1273,17 +1298,16 @@ fun MiniPlayerBar(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(bottom = 8.dp)
+            .padding(bottom = 12.dp)
             .clickable(onClick = onClick),
         shape = RectangleShape,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -1340,10 +1364,10 @@ fun MiniPlayerBar(
                 progress = { progress.coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(2.dp)
-                    .clip(RectangleShape),
-                color = Color(0xFF0000FF),
-                trackColor = Color.White.copy(alpha = 0.10f),
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(999.dp)),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.46f),
             )
         }
     }
@@ -1356,24 +1380,34 @@ fun PlaybackProgress(
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val progressBlue = Color(0xFF0000FF)
+    val safeDurationMs = durationMs.coerceAtLeast(1L)
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Slider(
-            value = positionMs.toFloat().coerceAtLeast(0f),
-            onValueChange = { onSeek(it.roundToInt().toLong()) },
-            valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .graphicsLayer(scaleY = 0.72f),
-            colors = SliderDefaults.colors(
-                thumbColor = progressBlue,
-                activeTrackColor = progressBlue,
-                inactiveTrackColor = Color.White.copy(alpha = 0.14f),
-            ),
-        )
+                .clip(RoundedCornerShape(999.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f))
+                .height(18.dp),
+        ) {
+            Slider(
+                value = positionMs.toFloat().coerceIn(0f, safeDurationMs.toFloat()),
+                onValueChange = { onSeek(it.roundToInt().toLong()) },
+                valueRange = 0f..safeDurationMs.toFloat(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer(scaleY = 0.58f),
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = Color.Transparent,
+                    activeTickColor = Color.Transparent,
+                    inactiveTickColor = Color.Transparent,
+                ),
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1381,7 +1415,7 @@ fun PlaybackProgress(
             Text(
                 text = formatDuration(positionMs),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.primary,
             )
             Text(
                 text = formatDuration(durationMs),
@@ -1496,34 +1530,55 @@ fun LyricsLineChip(
     active: Boolean,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(26.dp),
+    showContainer: Boolean = true,
 ) {
     val targetAlpha = if (active) 1f else 0.38f
     val targetScale = if (active) 1f else 0.94f
-    GlassPanel(
-        modifier = modifier,
-        shape = shape,
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 18.dp),
+    val textModifier = modifier
+        .fillMaxWidth()
+        .wrapContentHeight()
+    if (showContainer) {
+        GlassPanel(
+            modifier = modifier,
+            shape = shape,
         ) {
-            Text(
-                text = text,
-                style = (if (active) {
-                    MaterialTheme.typography.headlineMedium
-                } else {
-                    MaterialTheme.typography.titleMedium
-                }).copy(
-                    lineHeight = if (active) 34.sp else 26.sp,
-                ),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = targetAlpha),
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .wrapContentHeight()
-                    .graphicsLayer(scaleX = targetScale, scaleY = targetScale),
-            )
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+            ) {
+                Text(
+                    text = text,
+                    style = (if (active) {
+                        MaterialTheme.typography.headlineMedium
+                    } else {
+                        MaterialTheme.typography.titleMedium
+                    }).copy(
+                        lineHeight = if (active) 34.sp else 26.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = targetAlpha),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentHeight()
+                        .graphicsLayer(scaleX = targetScale, scaleY = targetScale),
+                )
+            }
         }
+    } else {
+        Text(
+            text = text,
+            style = (if (active) {
+                MaterialTheme.typography.headlineMedium
+            } else {
+                MaterialTheme.typography.titleMedium
+            }).copy(
+                lineHeight = if (active) 34.sp else 26.sp,
+            ),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = targetAlpha),
+            textAlign = TextAlign.Center,
+            modifier = textModifier.graphicsLayer(scaleX = targetScale, scaleY = targetScale),
+        )
     }
 }
 

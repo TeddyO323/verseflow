@@ -83,10 +83,13 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -99,17 +102,22 @@ import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -133,6 +141,7 @@ import java.nio.file.Path
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.time.Instant
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -154,27 +163,314 @@ import androidx.compose.ui.input.pointer.pointerMoveFilter
 import kotlin.math.roundToLong
 import kotlin.random.Random
 
-private val InkBlack = Color(0xFF040611)
-private val DeepSpace = Color(0xFF070B16)
-private val VerseBlue = Color(0xFF0000FF)
-private val NebulaBlue = Color(0xFF6B88FF)
-private val AuroraCyan = Color(0xFF66F2FF)
-private val FrostWhite = Color(0xFFF5F7FF)
-private val MutedLavender = Color(0xFFB5BDD6)
-private val SurfaceGlass = Color(0xFF0B0E17)
+private val InkBlackBase = Color(0xFF040611)
+private val DeepSpaceBase = Color(0xFF070B16)
+private val VerseBlueBase = Color(0xFF0000FF)
+private val NebulaBlueBase = Color(0xFF6B88FF)
+private val AuroraCyanBase = Color(0xFF66F2FF)
+private val FrostWhiteBase = Color(0xFFF5F7FF)
+private val MutedLavenderBase = Color(0xFFB5BDD6)
+private val SurfaceGlassBase = Color(0xFF0B0E17)
+
+private data class DesktopThemeTokens(
+    val background: Color,
+    val surface: Color,
+    val surfaceGlass: Color,
+    val primary: Color,
+    val secondary: Color,
+    val tertiary: Color,
+    val onSurface: Color,
+    val onSurfaceVariant: Color,
+)
+
+private fun desktopThemeTokensFrom(colorScheme: androidx.compose.material3.ColorScheme) = DesktopThemeTokens(
+    background = colorScheme.background,
+    surface = colorScheme.surface,
+    surfaceGlass = colorScheme.surface.copy(alpha = 0.94f),
+    primary = colorScheme.primary,
+    secondary = colorScheme.secondary,
+    tertiary = colorScheme.tertiary,
+    onSurface = colorScheme.onSurface,
+    onSurfaceVariant = colorScheme.onSurfaceVariant,
+)
+
+private var desktopThemeTokens by mutableStateOf(
+    DesktopThemeTokens(
+        background = InkBlackBase,
+        surface = DeepSpaceBase,
+        surfaceGlass = SurfaceGlassBase,
+        primary = VerseBlueBase,
+        secondary = AuroraCyanBase,
+        tertiary = NebulaBlueBase,
+        onSurface = FrostWhiteBase,
+        onSurfaceVariant = MutedLavenderBase,
+    ),
+)
+private var desktopThemeForArtwork by mutableStateOf("Nebula Dark")
+
+private val InkBlack: Color get() = desktopThemeTokens.background
+private val DeepSpace: Color get() = desktopThemeTokens.surface
+private val SurfaceGlass: Color get() = desktopThemeTokens.surfaceGlass
+private val VerseBlue: Color get() = desktopThemeTokens.primary
+private val AuroraCyan: Color get() = desktopThemeTokens.secondary
+private val NebulaBlue: Color get() = desktopThemeTokens.tertiary
+private val FrostWhite: Color get() = desktopThemeTokens.onSurface
+private val MutedLavender: Color get() = desktopThemeTokens.onSurfaceVariant
+
+private fun verseFlowDesktopTypography(): Typography {
+    val default = Typography()
+    val sharedFontFamily = FontFamily.SansSerif
+    return Typography(
+        displayLarge = default.displayLarge.copy(fontFamily = sharedFontFamily),
+        displayMedium = default.displayMedium.copy(fontFamily = sharedFontFamily),
+        displaySmall = default.displaySmall.copy(fontFamily = sharedFontFamily),
+        headlineLarge = default.headlineLarge.copy(fontFamily = sharedFontFamily),
+        headlineMedium = default.headlineMedium.copy(fontFamily = sharedFontFamily),
+        headlineSmall = default.headlineSmall.copy(fontFamily = sharedFontFamily),
+        titleLarge = default.titleLarge.copy(fontFamily = sharedFontFamily),
+        titleMedium = default.titleMedium.copy(fontFamily = sharedFontFamily),
+        titleSmall = default.titleSmall.copy(fontFamily = sharedFontFamily),
+        bodyLarge = default.bodyLarge.copy(fontFamily = sharedFontFamily),
+        bodyMedium = default.bodyMedium.copy(fontFamily = sharedFontFamily),
+        bodySmall = default.bodySmall.copy(fontFamily = sharedFontFamily),
+        labelLarge = default.labelLarge.copy(fontFamily = sharedFontFamily),
+        labelMedium = default.labelMedium.copy(fontFamily = sharedFontFamily),
+        labelSmall = default.labelSmall.copy(fontFamily = sharedFontFamily),
+    )
+}
 
 private val VerseFlowDesktopColors = darkColorScheme(
-    primary = VerseBlue,
-    secondary = AuroraCyan,
-    tertiary = NebulaBlue,
-    background = InkBlack,
-    surface = DeepSpace,
+    primary = VerseBlueBase,
+    secondary = AuroraCyanBase,
+    tertiary = NebulaBlueBase,
+    background = InkBlackBase,
+    surface = DeepSpaceBase,
     surfaceVariant = Color(0xFF12172B),
-    onPrimary = FrostWhite,
-    onBackground = FrostWhite,
-    onSurface = FrostWhite,
-    onSurfaceVariant = MutedLavender,
+    onPrimary = FrostWhiteBase,
+    onBackground = FrostWhiteBase,
+    onSurface = FrostWhiteBase,
+    onSurfaceVariant = MutedLavenderBase,
 )
+
+private fun desktopThemeNameCompatibility(selectedTheme: String): String =
+    when (selectedTheme) {
+        "Aurora Glow" -> "Crimson Velvet"
+        else -> selectedTheme
+    }
+
+private fun isDesktopMonochromeTheme(themeName: String): Boolean =
+    when (desktopThemeNameCompatibility(themeName)) {
+        "Black & White", "White & Black" -> true
+        else -> false
+    }
+
+private fun desktopArtworkColorFilter(): ColorFilter? =
+    if (isDesktopMonochromeTheme(desktopThemeForArtwork)) {
+        ColorFilter.colorMatrix(
+            ColorMatrix().apply { setToSaturation(0f) },
+        )
+    } else {
+        null
+    }
+
+private fun desktopColorSchemeForTheme(themeName: String) = when (desktopThemeNameCompatibility(themeName)) {
+    "Eclipse OLED" -> darkColorScheme(
+        primary = Color(0xFF8BB8FF),
+        secondary = Color(0xFF8CF6FF),
+        tertiary = Color(0xFF6C8DFF),
+        background = Color(0xFF010204),
+        surface = Color(0xFF05070B),
+        surfaceVariant = Color(0xFF0D1118),
+        onPrimary = FrostWhiteBase,
+        onBackground = FrostWhiteBase,
+        onSurface = FrostWhiteBase,
+        onSurfaceVariant = Color(0xFFB2BCCB),
+    )
+    "Crimson Velvet" -> darkColorScheme(
+        primary = Color(0xFFFF5A6B),
+        secondary = Color(0xFFFFA0B4),
+        tertiary = Color(0xFFFF7D86),
+        background = Color(0xFF12050A),
+        surface = Color(0xFF190911),
+        surfaceVariant = Color(0xFF2B111B),
+        onPrimary = FrostWhiteBase,
+        onBackground = FrostWhiteBase,
+        onSurface = FrostWhiteBase,
+        onSurfaceVariant = Color(0xFFD7BBC3),
+    )
+    "Solar Gold" -> darkColorScheme(
+        primary = Color(0xFFFFC548),
+        secondary = Color(0xFFFFE08A),
+        tertiary = Color(0xFFFF9C36),
+        background = Color(0xFF120B02),
+        surface = Color(0xFF1A1104),
+        surfaceVariant = Color(0xFF2D1A05),
+        onPrimary = Color(0xFF281600),
+        onBackground = Color(0xFFFFF6E3),
+        onSurface = Color(0xFFFFF6E3),
+        onSurfaceVariant = Color(0xFFE0C89A),
+    )
+    "Cobalt Luxe" -> darkColorScheme(
+        primary = Color(0xFF5E8DFF),
+        secondary = Color(0xFF7AE7FF),
+        tertiary = Color(0xFF9C7DFF),
+        background = Color(0xFF061024),
+        surface = Color(0xFF0B1630),
+        surfaceVariant = Color(0xFF13244A),
+        onPrimary = FrostWhiteBase,
+        onBackground = FrostWhiteBase,
+        onSurface = FrostWhiteBase,
+        onSurfaceVariant = Color(0xFFBAC7E5),
+    )
+    "Arctic Light" -> lightColorScheme(
+        primary = Color(0xFF3E7BFF),
+        secondary = Color(0xFF2EA8C9),
+        tertiary = Color(0xFF7F8FE8),
+        background = Color(0xFFF4FAFF),
+        surface = Color(0xFFFFFFFF),
+        surfaceVariant = Color(0xFFE6F1FB),
+        onPrimary = FrostWhiteBase,
+        onBackground = Color(0xFF102235),
+        onSurface = Color(0xFF102235),
+        onSurfaceVariant = Color(0xFF5B7185),
+    )
+    "Rose Studio" -> lightColorScheme(
+        primary = Color(0xFFE05C86),
+        secondary = Color(0xFFB86D7A),
+        tertiary = Color(0xFFFF9AB5),
+        background = Color(0xFFFFF7FA),
+        surface = Color(0xFFFFFCFD),
+        surfaceVariant = Color(0xFFFBE7EE),
+        onPrimary = FrostWhiteBase,
+        onBackground = Color(0xFF3B1D2A),
+        onSurface = Color(0xFF3B1D2A),
+        onSurfaceVariant = Color(0xFF7D6670),
+    )
+    "Mint Daybreak" -> lightColorScheme(
+        primary = Color(0xFF2D9D78),
+        secondary = Color(0xFF57B89A),
+        tertiary = Color(0xFF8BD9BF),
+        background = Color(0xFFF4FFF9),
+        surface = Color(0xFFFFFFFF),
+        surfaceVariant = Color(0xFFE1F6EC),
+        onPrimary = FrostWhiteBase,
+        onBackground = Color(0xFF16342B),
+        onSurface = Color(0xFF16342B),
+        onSurfaceVariant = Color(0xFF5D7A70),
+    )
+    "Amber Paper" -> lightColorScheme(
+        primary = Color(0xFFD6891F),
+        secondary = Color(0xFFB76A14),
+        tertiary = Color(0xFFFFC16A),
+        background = Color(0xFFFFFBF2),
+        surface = Color(0xFFFFFEFA),
+        surfaceVariant = Color(0xFFF5E7CA),
+        onPrimary = FrostWhiteBase,
+        onBackground = Color(0xFF3F2A09),
+        onSurface = Color(0xFF3F2A09),
+        onSurfaceVariant = Color(0xFF7C6850),
+    )
+    "Mono Mist" -> lightColorScheme(
+        primary = Color(0xFF48505A),
+        secondary = Color(0xFF6C727C),
+        tertiary = Color(0xFF9DA3AD),
+        background = Color(0xFFF6F7F8),
+        surface = Color(0xFFFFFFFF),
+        surfaceVariant = Color(0xFFE8EAED),
+        onPrimary = FrostWhiteBase,
+        onBackground = Color(0xFF1F2328),
+        onSurface = Color(0xFF1F2328),
+        onSurfaceVariant = Color(0xFF646C76),
+    )
+    "Black & White" -> darkColorScheme(
+        primary = Color(0xFFFFFFFF),
+        secondary = Color(0xFFD9D9D9),
+        tertiary = Color(0xFF9A9A9A),
+        background = Color(0xFF000000),
+        surface = Color(0xFF050505),
+        surfaceVariant = Color(0xFF121212),
+        onPrimary = Color(0xFF000000),
+        onBackground = Color(0xFFFFFFFF),
+        onSurface = Color(0xFFFFFFFF),
+        onSurfaceVariant = Color(0xFFBEBEBE),
+    )
+    "White & Black" -> lightColorScheme(
+        primary = Color(0xFF000000),
+        secondary = Color(0xFF303030),
+        tertiary = Color(0xFF767676),
+        background = Color(0xFFFFFFFF),
+        surface = Color(0xFFF8F8F8),
+        surfaceVariant = Color(0xFFE7E7E7),
+        onPrimary = Color(0xFFFFFFFF),
+        onBackground = Color(0xFF000000),
+        onSurface = Color(0xFF000000),
+        onSurfaceVariant = Color(0xFF5F5F5F),
+    )
+    else -> VerseFlowDesktopColors
+}
+
+private fun desktopColorLuminance(color: Color): Float =
+    (0.2126f * color.red) + (0.7152f * color.green) + (0.0722f * color.blue)
+
+private fun desktopImmersiveColorScheme(
+    palette: List<Color>,
+    spotlight: Boolean,
+): androidx.compose.material3.ColorScheme {
+    val base = palette.getOrElse(0) { VerseBlueBase }
+    val support = palette.getOrElse(1) { AuroraCyanBase }
+    val accent = palette.getOrElse(2) { NebulaBlueBase }
+    val isLight = desktopColorLuminance(base) > 0.52f
+    val primaryNeutral = if (isLight) Color(0xFF1C2128) else Color(0xFFE7EDF8)
+    val secondaryNeutral = if (isLight) Color(0xFF46515F) else Color(0xFFC9D3E2)
+
+    return if (isLight) {
+        val primaryTone = lerp(
+            lerp(accent, Color.Black, if (spotlight) 0.25f else 0.42f),
+            primaryNeutral,
+            if (spotlight) 0.12f else 0.34f,
+        )
+        val secondaryTone = lerp(
+            lerp(support, Color.Black, if (spotlight) 0.20f else 0.34f),
+            secondaryNeutral,
+            if (spotlight) 0.10f else 0.30f,
+        )
+        lightColorScheme(
+            primary = primaryTone,
+            secondary = secondaryTone,
+            tertiary = lerp(base, accent, if (spotlight) 0.40f else 0.26f),
+            background = lerp(base, Color.White, if (spotlight) 0.90f else 0.96f),
+            surface = lerp(base, Color.White, if (spotlight) 0.94f else 0.98f),
+            surfaceVariant = lerp(lerp(base, support, 0.35f), Color.White, if (spotlight) 0.82f else 0.91f),
+            onPrimary = Color.White,
+            onBackground = Color(0xFF101216),
+            onSurface = Color(0xFF101216),
+            onSurfaceVariant = Color(0xFF505763),
+        )
+    } else {
+        val primaryTone = lerp(
+            lerp(accent, Color.White, if (spotlight) 0.18f else 0.34f),
+            primaryNeutral,
+            if (spotlight) 0.08f else 0.26f,
+        )
+        val secondaryTone = lerp(
+            lerp(support, Color.White, if (spotlight) 0.12f else 0.28f),
+            secondaryNeutral,
+            if (spotlight) 0.08f else 0.24f,
+        )
+        darkColorScheme(
+            primary = primaryTone,
+            secondary = secondaryTone,
+            tertiary = lerp(base, accent, if (spotlight) 0.45f else 0.28f),
+            background = lerp(base, Color.Black, if (spotlight) 0.80f else 0.90f),
+            surface = lerp(base, Color.Black, if (spotlight) 0.72f else 0.84f),
+            surfaceVariant = lerp(lerp(base, support, 0.30f), Color.Black, if (spotlight) 0.60f else 0.76f),
+            onPrimary = Color.Black,
+            onBackground = Color.White,
+            onSurface = Color.White,
+            onSurfaceVariant = Color(0xFFD2D8E3),
+        )
+    }
+}
 
 private const val MIN_WIKIPEDIA_ARTIST_SCORE = 20
 
@@ -224,6 +520,12 @@ private enum class DesktopArtistDetailTab(val title: String) {
     Albums("Albums"),
     Features("Features"),
     About("About"),
+}
+
+private enum class DesktopAlbumDetailTab(val title: String) {
+    Tracks("Tracks"),
+    Info("Info"),
+    Stats("Stats"),
 }
 
 private data class DesktopArtistConnectionSummary(
@@ -300,6 +602,25 @@ private data class DesktopPlayHistoryDaySection(
     val entries: List<DesktopPlayHistoryEntry>,
 )
 
+private data class DesktopHistoryHeatmapCell(
+    val date: LocalDate,
+    val intensity: Int,
+    val playCount: Int,
+)
+
+private data class DesktopHistoryAlbumRecap(
+    val artist: String,
+    val album: String,
+    val plays: Int,
+    val listenedMs: Long,
+)
+
+private data class DesktopHistoryTimePattern(
+    val label: String,
+    val plays: Int,
+    val listenedMs: Long,
+)
+
 private data class DesktopTrackMenuModel(
     val favoriteTrackPaths: Set<String>,
     val userPlaylists: List<DesktopPlaylistSummary>,
@@ -321,6 +642,21 @@ private data class DesktopArtistLookupUiState(
     val isError: Boolean = false,
 )
 
+private data class DesktopAlbumLookupUiState(
+    val albumKey: String? = null,
+    val isLoading: Boolean = false,
+    val message: String? = null,
+    val isError: Boolean = false,
+)
+
+private data class DesktopAlbumManualSearchUiState(
+    val albumKey: String? = null,
+    val query: String = "",
+    val candidates: List<DesktopArtistLookupCandidate> = emptyList(),
+    val isLoading: Boolean = false,
+    val message: String? = null,
+)
+
 private data class DesktopArtistManualSearchUiState(
     val artistName: String? = null,
     val query: String = "",
@@ -333,6 +669,33 @@ private data class DesktopFetchedArtistProfile(
     val bio: String?,
     val imageUrl: String?,
     val sourcePageTitle: String,
+)
+
+private data class DesktopFetchedAlbumProfile(
+    val bio: String?,
+    val releaseDate: String?,
+    val genre: String?,
+    val sourcePageTitle: String,
+    val totalTrackCount: Int?,
+    val trackTitles: List<String>,
+)
+
+private data class DesktopAlbumStats(
+    val playCount: Int,
+    val listenedMs: Long,
+    val lastPlayedAtMs: Long?,
+    val firstAddedAtMs: Long?,
+    val newestAddedAtMs: Long?,
+    val trackCount: Int,
+    val totalDurationMs: Long,
+)
+
+private data class DesktopNavigationSnapshot(
+    val section: DesktopSection,
+    val libraryTab: DesktopLibraryTab,
+    val selectedPlaylistId: String?,
+    val selectedAlbumKey: String?,
+    val selectedArtistName: String?,
 )
 
 private data class DesktopArtistLookupCandidate(
@@ -364,8 +727,17 @@ fun VerseFlowDesktopApp() {
         listOf(
             DesktopThemePreset("Nebula Dark", "Original cinematic dark theme"),
             DesktopThemePreset("Eclipse OLED", "High-contrast near-black desktop mode"),
-            DesktopThemePreset("Aurora Glow", "Richer accents for screenshots and motion"),
+            DesktopThemePreset("Crimson Velvet", "Deep red dark theme with warmer contrast"),
+            DesktopThemePreset("Solar Gold", "Golden dark theme with richer warmth"),
             DesktopThemePreset("Cobalt Luxe", "Blue-forward premium look for desktop"),
+            DesktopThemePreset("Arctic Light", "Clean icy light theme for daytime use"),
+            DesktopThemePreset("Rose Studio", "Soft rose light theme with warm neutrals"),
+            DesktopThemePreset("Mint Daybreak", "Fresh green light theme with airy surfaces"),
+            DesktopThemePreset("Amber Paper", "Warm paper-like light theme"),
+            DesktopThemePreset("Mono Mist", "Neutral grayscale light theme"),
+            DesktopThemePreset("Black & White", "Strict monochrome theme with grayscale artwork"),
+            DesktopThemePreset("White & Black", "Inverse monochrome theme with white-led surfaces"),
+            DesktopThemePreset("Immersive Flow", "Live interface tint pulled from the currently playing album art"),
         )
     }
     val storedSettings = remember(desktopThemes) { appStore.loadSettings(desktopThemes.last().name) }
@@ -382,6 +754,7 @@ fun VerseFlowDesktopApp() {
     }
     var section by remember { mutableStateOf(DesktopSection.Home) }
     var libraryTab by remember { mutableStateOf(DesktopLibraryTab.Songs) }
+    var nowPlayingReturnSnapshot by remember { mutableStateOf<DesktopNavigationSnapshot?>(null) }
     var isSidebarCollapsed by remember { mutableStateOf(libraryStore.loadSidebarCollapsed()) }
     var selectedPlaylistId by remember { mutableStateOf<String?>(null) }
     var selectedAlbumKey by remember { mutableStateOf<String?>(null) }
@@ -396,7 +769,7 @@ fun VerseFlowDesktopApp() {
     var albumsGridScrolled by remember { mutableStateOf(false) }
     var homeScrolled by remember { mutableStateOf(false) }
     var displayName by remember { mutableStateOf(storedSettings.displayName) }
-    var selectedTheme by remember { mutableStateOf(storedSettings.selectedTheme) }
+    var selectedTheme by remember { mutableStateOf(desktopThemeNameCompatibility(storedSettings.selectedTheme)) }
     var isShuffleEnabled by remember { mutableStateOf(storedSettings.isShuffleEnabled) }
     var isRepeatEnabled by remember { mutableStateOf(storedSettings.isRepeatEnabled) }
     var autoRescanEnabled by remember { mutableStateOf(storedSettings.autoRescanEnabled) }
@@ -410,8 +783,11 @@ fun VerseFlowDesktopApp() {
     var hiddenTrackPaths by remember { mutableStateOf(appStore.loadHiddenTrackPaths()) }
     var trackOverrides by remember { mutableStateOf(appStore.loadTrackOverrides()) }
     var artistProfileOverrides by remember { mutableStateOf(appStore.loadArtistProfileOverrides()) }
+    var albumProfileOverrides by remember { mutableStateOf(appStore.loadAlbumProfileOverrides()) }
     var artistLookupUiState by remember { mutableStateOf(DesktopArtistLookupUiState()) }
     var artistManualSearchUiState by remember { mutableStateOf(DesktopArtistManualSearchUiState()) }
+    var albumLookupUiState by remember { mutableStateOf(DesktopAlbumLookupUiState()) }
+    var albumManualSearchUiState by remember { mutableStateOf(DesktopAlbumManualSearchUiState()) }
     var pendingPlaybackSession by remember { mutableStateOf(appStore.loadPlaybackSession()) }
     var queueTrackPaths by remember { mutableStateOf<List<String>>(emptyList()) }
     var queueLabel by remember { mutableStateOf("All Songs") }
@@ -515,6 +891,9 @@ fun VerseFlowDesktopApp() {
     }
     val selectedArtist = remember(selectedArtistName, allArtists) {
         allArtists.firstOrNull { it.name == selectedArtistName }
+    }
+    val selectedAlbumProfileOverride = remember(selectedAlbum?.artist, selectedAlbum?.title, albumProfileOverrides) {
+        selectedAlbum?.let { albumProfileOverrides[desktopAlbumKey(it.artist, it.title)] }
     }
     val selectedArtistProfileOverride = remember(selectedArtist?.name, artistProfileOverrides) {
         selectedArtist?.name?.let { artistProfileOverrides[it] }
@@ -746,6 +1125,36 @@ fun VerseFlowDesktopApp() {
         scanFolders(mergedPaths)
     }
 
+    fun captureNavigationSnapshot(): DesktopNavigationSnapshot =
+        DesktopNavigationSnapshot(
+            section = section,
+            libraryTab = libraryTab,
+            selectedPlaylistId = selectedPlaylistId,
+            selectedAlbumKey = selectedAlbumKey,
+            selectedArtistName = selectedArtistName,
+        )
+
+    fun openNowPlaying() {
+        if (section != DesktopSection.NowPlaying) {
+            nowPlayingReturnSnapshot = captureNavigationSnapshot()
+        }
+        section = DesktopSection.NowPlaying
+    }
+
+    fun restoreFromNowPlaying() {
+        val snapshot = nowPlayingReturnSnapshot
+        if (snapshot == null) {
+            section = DesktopSection.Home
+            return
+        }
+        libraryTab = snapshot.libraryTab
+        selectedPlaylistId = snapshot.selectedPlaylistId
+        selectedAlbumKey = snapshot.selectedAlbumKey
+        selectedArtistName = snapshot.selectedArtistName
+        section = snapshot.section
+        nowPlayingReturnSnapshot = null
+    }
+
     fun removeLibraryFolder(path: String) {
         val remainingPaths = libraryState.sourcePaths
             .filterNot { it == path }
@@ -884,6 +1293,38 @@ fun VerseFlowDesktopApp() {
         appStore.saveArtistProfileOverrides(artistProfileOverrides)
     }
 
+    fun updateAlbumProfile(
+        albumKey: String,
+        about: String? = albumProfileOverrides[albumKey]?.about,
+        releaseDate: String? = albumProfileOverrides[albumKey]?.releaseDate,
+        genre: String? = albumProfileOverrides[albumKey]?.genre,
+        sourcePageTitle: String? = albumProfileOverrides[albumKey]?.sourcePageTitle,
+        totalTrackCount: Int? = albumProfileOverrides[albumKey]?.totalTrackCount,
+        trackTitles: List<String> = albumProfileOverrides[albumKey]?.trackTitles.orEmpty(),
+    ) {
+        val nextOverride = DesktopAlbumProfileOverride(
+            about = about?.trim().takeUnless { it.isNullOrEmpty() },
+            releaseDate = releaseDate?.trim().takeUnless { it.isNullOrEmpty() },
+            genre = genre?.trim().takeUnless { it.isNullOrEmpty() },
+            sourcePageTitle = sourcePageTitle?.trim().takeUnless { it.isNullOrEmpty() },
+            totalTrackCount = totalTrackCount?.takeIf { it > 0 },
+            trackTitles = trackTitles.map(String::trim).filter(String::isNotBlank).distinct(),
+        )
+        albumProfileOverrides = if (
+            nextOverride.about == null &&
+            nextOverride.releaseDate == null &&
+            nextOverride.genre == null &&
+            nextOverride.sourcePageTitle == null &&
+            nextOverride.totalTrackCount == null &&
+            nextOverride.trackTitles.isEmpty()
+        ) {
+            albumProfileOverrides - albumKey
+        } else {
+            albumProfileOverrides + (albumKey to nextOverride)
+        }
+        appStore.saveAlbumProfileOverrides(albumProfileOverrides)
+    }
+
     fun importArtistProfile(
         artistName: String,
         artistTracks: List<DesktopTrack>,
@@ -938,6 +1379,170 @@ fun VerseFlowDesktopApp() {
                 )
             }.also { nextState ->
                 artistLookupUiState = nextState
+            }
+        }
+    }
+
+    fun importAlbumProfile(
+        album: DesktopAlbumSummary,
+        albumTracks: List<DesktopTrack>,
+    ) {
+        val albumKey = desktopAlbumKey(album.artist, album.title)
+        albumLookupUiState = DesktopAlbumLookupUiState(
+            albumKey = albumKey,
+            isLoading = true,
+            message = "Searching Wikipedia for ${album.title}...",
+            isError = false,
+        )
+        coroutineScope.launch {
+            runCatching {
+                val profile = fetchDesktopAlbumProfileFromWikipedia(
+                    album = album,
+                    albumTracks = albumTracks,
+                )
+                updateAlbumProfile(
+                    albumKey = albumKey,
+                    about = profile.bio ?: albumProfileOverrides[albumKey]?.about,
+                    releaseDate = profile.releaseDate ?: album.releaseDate ?: albumProfileOverrides[albumKey]?.releaseDate,
+                    genre = profile.genre ?: album.genre.ifBlank { null } ?: albumProfileOverrides[albumKey]?.genre,
+                    sourcePageTitle = profile.sourcePageTitle,
+                    totalTrackCount = profile.totalTrackCount ?: albumProfileOverrides[albumKey]?.totalTrackCount,
+                    trackTitles = profile.trackTitles.ifEmpty { albumProfileOverrides[albumKey]?.trackTitles.orEmpty() },
+                )
+                DesktopAlbumLookupUiState(
+                    albumKey = albumKey,
+                    isLoading = false,
+                    message = "Imported album info from ${profile.sourcePageTitle}.",
+                    isError = false,
+                )
+            }.getOrElse { error ->
+                DesktopAlbumLookupUiState(
+                    albumKey = albumKey,
+                    isLoading = false,
+                    message = error.message ?: "VerseFlow couldn't fetch album info right now.",
+                    isError = true,
+                )
+            }.also { nextState ->
+                albumLookupUiState = nextState
+            }
+        }
+    }
+
+    fun openManualAlbumSearch(
+        album: DesktopAlbumSummary,
+        albumTracks: List<DesktopTrack>,
+    ) {
+        val representativeTrack = albumTracks.firstOrNull()
+        val initialQuery = listOf(album.title, album.artist, representativeTrack?.title.orEmpty(), "album")
+            .filter(String::isNotBlank)
+            .joinToString(" ")
+        val albumKey = desktopAlbumKey(album.artist, album.title)
+        albumManualSearchUiState = DesktopAlbumManualSearchUiState(
+            albumKey = albumKey,
+            query = initialQuery,
+            isLoading = true,
+            message = "Searching Wikipedia...",
+        )
+        coroutineScope.launch {
+            val candidates = runCatching {
+                val client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build()
+                searchWikipediaCandidates(
+                    client = client,
+                    query = initialQuery,
+                    artistName = album.artist,
+                    representativeTrack = representativeTrack,
+                )
+            }.getOrDefault(emptyList())
+            albumManualSearchUiState = albumManualSearchUiState.copy(
+                candidates = candidates,
+                isLoading = false,
+                message = if (candidates.isEmpty()) "No Wikipedia results found for that search." else null,
+            )
+        }
+    }
+
+    fun runManualAlbumSearch(
+        album: DesktopAlbumSummary,
+        query: String,
+        albumTracks: List<DesktopTrack>,
+    ) {
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank()) return
+        val representativeTrack = albumTracks.firstOrNull()
+        val albumKey = desktopAlbumKey(album.artist, album.title)
+        albumManualSearchUiState = albumManualSearchUiState.copy(
+            albumKey = albumKey,
+            query = normalizedQuery,
+            isLoading = true,
+            message = "Searching Wikipedia...",
+            candidates = emptyList(),
+        )
+        coroutineScope.launch {
+            val candidates = runCatching {
+                val client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build()
+                searchWikipediaCandidates(
+                    client = client,
+                    query = normalizedQuery,
+                    artistName = album.artist,
+                    representativeTrack = representativeTrack,
+                )
+            }.getOrDefault(emptyList())
+            albumManualSearchUiState = albumManualSearchUiState.copy(
+                candidates = candidates,
+                isLoading = false,
+                message = if (candidates.isEmpty()) "No Wikipedia results found for that search." else null,
+            )
+        }
+    }
+
+    fun importAlbumProfileFromManualCandidate(
+        album: DesktopAlbumSummary,
+        albumTracks: List<DesktopTrack>,
+        pageTitle: String,
+    ) {
+        val albumKey = desktopAlbumKey(album.artist, album.title)
+        albumLookupUiState = DesktopAlbumLookupUiState(
+            albumKey = albumKey,
+            isLoading = true,
+            message = "Importing album info from $pageTitle...",
+            isError = false,
+        )
+        coroutineScope.launch {
+            runCatching {
+                val profile = fetchDesktopAlbumProfileFromWikipediaPage(
+                    album = album,
+                    albumTracks = albumTracks,
+                    pageTitle = pageTitle,
+                )
+                updateAlbumProfile(
+                    albumKey = albumKey,
+                    about = profile.bio ?: albumProfileOverrides[albumKey]?.about,
+                    releaseDate = profile.releaseDate ?: album.releaseDate ?: albumProfileOverrides[albumKey]?.releaseDate,
+                    genre = profile.genre ?: album.genre.ifBlank { null } ?: albumProfileOverrides[albumKey]?.genre,
+                    sourcePageTitle = profile.sourcePageTitle,
+                    totalTrackCount = profile.totalTrackCount ?: albumProfileOverrides[albumKey]?.totalTrackCount,
+                    trackTitles = profile.trackTitles.ifEmpty { albumProfileOverrides[albumKey]?.trackTitles.orEmpty() },
+                )
+                albumManualSearchUiState = DesktopAlbumManualSearchUiState()
+                DesktopAlbumLookupUiState(
+                    albumKey = albumKey,
+                    isLoading = false,
+                    message = "Imported album info from $pageTitle.",
+                    isError = false,
+                )
+            }.getOrElse { error ->
+                DesktopAlbumLookupUiState(
+                    albumKey = albumKey,
+                    isLoading = false,
+                    message = error.message ?: "VerseFlow couldn't import that Wikipedia page.",
+                    isError = true,
+                )
+            }.also { nextState ->
+                albumLookupUiState = nextState
             }
         }
     }
@@ -1433,101 +2038,127 @@ fun VerseFlowDesktopApp() {
         }
     }
 
-    MaterialTheme(colorScheme = VerseFlowDesktopColors) {
+    val desktopColorScheme = remember(selectedTheme, currentTrack?.id, currentTrack?.palette, section) {
+        if (desktopThemeNameCompatibility(selectedTheme) == "Immersive Flow") {
+            desktopImmersiveColorScheme(
+                palette = currentTrack?.palette ?: listOf(VerseBlueBase, AuroraCyanBase, NebulaBlueBase),
+                spotlight = section == DesktopSection.NowPlaying,
+            )
+        } else {
+            desktopColorSchemeForTheme(selectedTheme)
+        }
+    }
+    val desktopTypography = remember { verseFlowDesktopTypography() }
+
+    MaterialTheme(
+        colorScheme = desktopColorScheme,
+        typography = desktopTypography,
+    ) {
+        SideEffect {
+            desktopThemeTokens = desktopThemeTokensFrom(desktopColorScheme)
+            desktopThemeForArtwork = selectedTheme
+        }
         val isLibrarySection = section == DesktopSection.Library
-        val isHomeSection = section == DesktopSection.Home
-        val isSearchSection = section == DesktopSection.Search
-        val isPlayQueueSection = section == DesktopSection.PlayQueue
-        val isPlayHistorySection = section == DesktopSection.PlayHistory
-        val isSettingsSection = section == DesktopSection.Settings
-        val isAlbumDetailSection = section == DesktopSection.AlbumDetail
-        val isArtistDetailSection = section == DesktopSection.ArtistDetail
-        val isPlaylistDetailSection = section == DesktopSection.PlaylistDetail
-        val isPageOwnedChromeSection =
-            isLibrarySection ||
-                isHomeSection ||
-                isSearchSection ||
-                isPlayQueueSection ||
-                isPlayHistorySection ||
-                isSettingsSection ||
-                isArtistDetailSection
-        val isEdgeToEdgeSection =
-            isPageOwnedChromeSection ||
-                isAlbumDetailSection ||
-                isPlaylistDetailSection
-        val contentStartPadding by animateDpAsState(
-            targetValue = if (isEdgeToEdgeSection) 0.dp else 24.dp,
-            label = "desktopContentStartPadding",
-        )
-        val contentEndPadding by animateDpAsState(
-            targetValue = if (isEdgeToEdgeSection) 0.dp else 24.dp,
-            label = "desktopContentEndPadding",
-        )
-        val contentBottomPadding by animateDpAsState(
-            targetValue = if (isEdgeToEdgeSection) 0.dp else 24.dp,
-            label = "desktopContentBottomPadding",
-        )
-        val contentTopPadding by animateDpAsState(
-            targetValue = if (isEdgeToEdgeSection) 0.dp else 24.dp,
-            label = "desktopContentTopPadding",
-        )
-        Box(
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            DesktopAppBackdrop(track = currentTrack)
-            Row(modifier = Modifier.fillMaxSize()) {
-                DesktopSidebar(
-                    items = sidebarItems,
-                    collapsed = isSidebarCollapsed,
-                    onToggleCollapsed = {
-                        val nextState = !isSidebarCollapsed
-                        isSidebarCollapsed = nextState
-                        libraryStore.saveSidebarCollapsed(nextState)
-                    },
-                    queueLabel = queueLabel,
-                    modifier = Modifier.width(if (isSidebarCollapsed) 96.dp else 250.dp),
-                )
-                Column(
+            val isHomeSection = section == DesktopSection.Home
+            val isSearchSection = section == DesktopSection.Search
+            val isPlayQueueSection = section == DesktopSection.PlayQueue
+            val isPlayHistorySection = section == DesktopSection.PlayHistory
+            val isSettingsSection = section == DesktopSection.Settings
+            val isAlbumDetailSection = section == DesktopSection.AlbumDetail
+            val isArtistDetailSection = section == DesktopSection.ArtistDetail
+            val isPlaylistDetailSection = section == DesktopSection.PlaylistDetail
+            val isPageOwnedChromeSection =
+                isLibrarySection ||
+                    isHomeSection ||
+                    isSearchSection ||
+                    isPlayQueueSection ||
+                    isPlayHistorySection ||
+                    isSettingsSection ||
+                    isArtistDetailSection
+            val isEdgeToEdgeSection =
+                isPageOwnedChromeSection ||
+                    isAlbumDetailSection ||
+                    isPlaylistDetailSection
+            val contentStartPadding by animateDpAsState(
+                targetValue = if (isEdgeToEdgeSection) 0.dp else 24.dp,
+                label = "desktopContentStartPadding",
+            )
+            val contentEndPadding by animateDpAsState(
+                targetValue = if (isEdgeToEdgeSection) 0.dp else 24.dp,
+                label = "desktopContentEndPadding",
+            )
+            val contentBottomPadding by animateDpAsState(
+                targetValue = if (isEdgeToEdgeSection) 0.dp else 24.dp,
+                label = "desktopContentBottomPadding",
+            )
+            val contentTopPadding by animateDpAsState(
+                targetValue = if (isEdgeToEdgeSection) 0.dp else 24.dp,
+                label = "desktopContentTopPadding",
+            )
+            Box(
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(
-                            start = contentStartPadding,
-                            end = contentEndPadding,
-                            bottom = contentBottomPadding,
-                            top = contentTopPadding,
-                        ),
-                    verticalArrangement = Arrangement.spacedBy(if (isPageOwnedChromeSection) 0.dp else 18.dp),
-                ) {
-                    if (!isPageOwnedChromeSection) {
-                        DesktopTopBar(
-                            searchQuery = searchQuery,
-                            onSearchChange = { searchQuery = it },
-                            onOpenSearch = {
-                                if (searchQuery.isNotBlank()) rememberSearch(searchQuery)
-                                section = DesktopSection.Search
-                            },
-                            libraryPaths = libraryState.sourcePaths,
-                            trackCount = tracks.size,
-                            isScanning = libraryState.isScanning,
-                            onChooseFolder = chooseFolder,
-                            compactMode = false,
-                            compactTitle = null,
-                            onRescan = {
-                                libraryState.sourcePaths
-                                    .takeIf { it.isNotEmpty() }
-                                    ?.map(Path::of)
-                                    ?.let(::scanFolders)
-                            },
-                        )
-                    }
-                    Box(
+                        .fillMaxSize()
+                        .background(InkBlack),
+                )
+                if (section == DesktopSection.NowPlaying) {
+                    DesktopAppBackdrop(track = currentTrack)
+                }
+                Row(modifier = Modifier.fillMaxSize()) {
+                    DesktopSidebar(
+                        items = sidebarItems,
+                        collapsed = isSidebarCollapsed,
+                        onToggleCollapsed = {
+                            val nextState = !isSidebarCollapsed
+                            isSidebarCollapsed = nextState
+                            libraryStore.saveSidebarCollapsed(nextState)
+                        },
+                        queueLabel = queueLabel,
+                        modifier = Modifier.width(if (isSidebarCollapsed) 96.dp else 250.dp),
+                    )
+                    Column(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxWidth(),
+                            .fillMaxHeight()
+                            .padding(
+                                start = contentStartPadding,
+                                end = contentEndPadding,
+                                bottom = contentBottomPadding,
+                                top = contentTopPadding,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(if (isPageOwnedChromeSection) 0.dp else 18.dp),
                     ) {
-                        AnimatedContent(targetState = section, label = "desktopSection") { activeSection ->
-                            when (activeSection) {
+                        if (!isPageOwnedChromeSection) {
+                            DesktopTopBar(
+                                searchQuery = searchQuery,
+                                onSearchChange = { searchQuery = it },
+                                onOpenSearch = {
+                                    if (searchQuery.isNotBlank()) rememberSearch(searchQuery)
+                                    section = DesktopSection.Search
+                                },
+                                libraryPaths = libraryState.sourcePaths,
+                                trackCount = tracks.size,
+                                isScanning = libraryState.isScanning,
+                                onChooseFolder = chooseFolder,
+                                compactMode = false,
+                                compactTitle = null,
+                                onRescan = {
+                                    libraryState.sourcePaths
+                                        .takeIf { it.isNotEmpty() }
+                                        ?.map(Path::of)
+                                        ?.let(::scanFolders)
+                                },
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                        ) {
+                            AnimatedContent(targetState = section, label = "desktopSection") { activeSection ->
+                                when (activeSection) {
                                 DesktopSection.Home -> DesktopHome(
                                     name = displayName,
                                     tracks = tracks,
@@ -1558,7 +2189,7 @@ fun VerseFlowDesktopApp() {
                                             ?.let(::scanFolders)
                                     },
                                     onHomeScrolledChange = { homeScrolled = it },
-                                    onOpenNowPlaying = { section = DesktopSection.NowPlaying },
+                                    onOpenNowPlaying = ::openNowPlaying,
                                     onOpenLyrics = { section = DesktopSection.Lyrics },
                                     onOpenAlbum = { album ->
                                         selectedAlbumKey = desktopAlbumKey(album.artist, album.title)
@@ -1566,11 +2197,11 @@ fun VerseFlowDesktopApp() {
                                     },
                                     onPlayTrack = { track ->
                                         playTrack(track, queue = tracks, label = "All Songs")
-                                        section = DesktopSection.NowPlaying
+                                        openNowPlaying()
                                     },
                                     onPlayCollection = { collection, label ->
                                         collection.firstOrNull()?.let { playTrack(it, queue = collection, label = label) }
-                                        section = DesktopSection.NowPlaying
+                                        openNowPlaying()
                                     },
                                     onArtistSpotlightOrderChange = { orderedArtists ->
                                         artistSpotlightOrder = orderedArtists
@@ -1624,7 +2255,7 @@ fun VerseFlowDesktopApp() {
                                     },
                                     onPlayCollection = { collection ->
                                         collection.firstOrNull()?.let { playTrack(it, queue = collection, label = "Selected Collection") }
-                                        section = DesktopSection.NowPlaying
+                                        openNowPlaying()
                                     },
                                     onOpenPlaylist = { playlist ->
                                         selectedPlaylistId = playlist.id
@@ -1777,6 +2408,7 @@ fun VerseFlowDesktopApp() {
                                     onToggleShuffle = { isShuffleEnabled = !isShuffleEnabled },
                                     onToggleRepeat = { isRepeatEnabled = !isRepeatEnabled },
                                     onOpenLyrics = { section = DesktopSection.Lyrics },
+                                    onBack = ::restoreFromNowPlaying,
                                     onChooseFolder = chooseFolder,
                                 )
 
@@ -1839,7 +2471,7 @@ fun VerseFlowDesktopApp() {
                                     },
                                     onPlayPlaylist = { playlist ->
                                         playlist.tracks.firstOrNull()?.let { playTrack(it, queue = playlist.tracks, label = playlist.title) }
-                                        section = DesktopSection.NowPlaying
+                                        openNowPlaying()
                                     },
                                     onPlayTrack = { track ->
                                         playTrack(
@@ -1847,7 +2479,7 @@ fun VerseFlowDesktopApp() {
                                             queue = selectedPlaylist?.tracks ?: activeQueue,
                                             label = selectedPlaylist?.title ?: queueLabel,
                                         )
-                                        section = DesktopSection.NowPlaying
+                                        openNowPlaying()
                                     },
                                     onUpdateTitle = { playlistId, title ->
                                         updateUserPlaylist(playlistId) { playlist ->
@@ -1875,9 +2507,13 @@ fun VerseFlowDesktopApp() {
 
                                 DesktopSection.AlbumDetail -> DesktopAlbumDetail(
                                     album = selectedAlbum,
+                                    albumProfileOverride = selectedAlbumProfileOverride,
+                                    albumLookupUiState = albumLookupUiState,
+                                    albumManualSearchUiState = albumManualSearchUiState,
                                     tracks = selectedAlbum?.let { album ->
                                         tracks.filter { it.albumArtist == album.artist && it.album == album.title }
                                     }.orEmpty(),
+                                    historyEntries = playHistoryEntries,
                                     currentTrack = currentTrack,
                                     onBack = {
                                         libraryTab = DesktopLibraryTab.Albums
@@ -1889,12 +2525,28 @@ fun VerseFlowDesktopApp() {
                                     },
                                     onPlayAlbum = { albumTracks ->
                                         albumTracks.firstOrNull()?.let { playTrack(it, queue = albumTracks, label = selectedAlbum?.title ?: "Album") }
-                                        section = DesktopSection.NowPlaying
+                                        openNowPlaying()
                                     },
                                     onPlayTrack = { track ->
                                         playTrack(track, queue = tracks.filter { it.albumArtist == selectedAlbum?.artist && it.album == selectedAlbum?.title }, label = selectedAlbum?.title ?: "Album")
-                                        section = DesktopSection.NowPlaying
                                     },
+                                    onImportAlbumProfile = { albumSummary, albumTracks ->
+                                        importAlbumProfile(albumSummary, albumTracks)
+                                    },
+                                    onOpenManualAlbumSearch = { albumSummary, albumTracks ->
+                                        openManualAlbumSearch(albumSummary, albumTracks)
+                                    },
+                                    onManualAlbumSearchQueryChange = { albumSummary, query ->
+                                        val albumKey = desktopAlbumKey(albumSummary.artist, albumSummary.title)
+                                        albumManualSearchUiState = albumManualSearchUiState.copy(albumKey = albumKey, query = query)
+                                    },
+                                    onRunManualAlbumSearch = { albumSummary, query, albumTracks ->
+                                        runManualAlbumSearch(albumSummary, query, albumTracks)
+                                    },
+                                    onImportAlbumProfileFromCandidate = { albumSummary, albumTracks, pageTitle ->
+                                        importAlbumProfileFromManualCandidate(albumSummary, albumTracks, pageTitle)
+                                    },
+                                    onDismissManualAlbumSearch = { albumManualSearchUiState = DesktopAlbumManualSearchUiState() },
                                     trackMenu = trackMenuModel,
                                 )
 
@@ -1952,7 +2604,7 @@ fun VerseFlowDesktopApp() {
                                     },
                                     onPlayArtist = { artistTracks ->
                                         artistTracks.firstOrNull()?.let { playTrack(it, queue = artistTracks, label = selectedArtist?.name ?: "Artist") }
-                                        section = DesktopSection.NowPlaying
+                                        openNowPlaying()
                                     },
                                     onPlayTrack = { track ->
                                         playTrack(track, queue = tracks.filter { selectedArtist?.name in it.artistCredits }, label = selectedArtist?.name ?: "Artist")
@@ -2013,7 +2665,7 @@ fun VerseFlowDesktopApp() {
                             isPlaying = playbackState.isPlaying,
                             progress = if (currentDurationMs == 0L) 0f else playbackState.positionMs.toFloat() / currentDurationMs.toFloat(),
                             positionMs = playbackState.positionMs,
-                            onOpenNowPlaying = { section = DesktopSection.NowPlaying },
+                            onOpenNowPlaying = ::openNowPlaying,
                             onPrevious = { stepToTrack(-1) },
                             onPlayPause = {
                                 if (playbackState.trackId != currentTrack.id) {
@@ -3552,7 +4204,11 @@ private fun DesktopPlayHistory(
     val trackByPath = remember(tracks) { tracks.associateBy(DesktopTrack::path) }
     val groupedHistory = remember(historyEntries) { historyEntries.toHistoryDaySections() }
     val historyCards = remember(historyEntries) { historyEntries.toHistorySummaryCards() }
+    val historyRecapCards = remember(historyEntries) { historyEntries.toListeningRecapCards() }
     val topArtists = remember(historyEntries) { historyEntries.topHistoryArtists() }
+    val topAlbums = remember(historyEntries) { historyEntries.topHistoryAlbums() }
+    val timePatterns = remember(historyEntries) { historyEntries.toTimeOfDayPatterns() }
+    val heatmap = remember(historyEntries) { historyEntries.toHistoryHeatmap() }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
 
     Column(
@@ -3644,6 +4300,22 @@ private fun DesktopPlayHistory(
                     item {
                         DesktopHistorySummaryGrid(cards = historyCards)
                     }
+                    if (historyRecapCards.isNotEmpty()) {
+                        item {
+                            SectionLabel("Weekly and monthly recaps")
+                        }
+                        item {
+                            DesktopHistorySummaryGrid(cards = historyRecapCards)
+                        }
+                    }
+                    if (heatmap.isNotEmpty()) {
+                        item {
+                            SectionLabel("Listening heatmap")
+                        }
+                        item {
+                            DesktopHistoryHeatmap(heatmap = heatmap)
+                        }
+                    }
                     if (topArtists.isNotEmpty()) {
                         item {
                             SectionLabel("Top artists")
@@ -3655,6 +4327,30 @@ private fun DesktopPlayHistory(
                                         artistName = artistName,
                                         plays = plays,
                                     )
+                                }
+                            }
+                        }
+                    }
+                    if (topAlbums.isNotEmpty()) {
+                        item {
+                            SectionLabel("Most-played albums")
+                        }
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(topAlbums) { albumRecap ->
+                                    DesktopHistoryAlbumCard(albumRecap = albumRecap)
+                                }
+                            }
+                        }
+                    }
+                    if (timePatterns.isNotEmpty()) {
+                        item {
+                            SectionLabel("Time-of-day patterns")
+                        }
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(timePatterns) { pattern ->
+                                    DesktopHistoryTimePatternCard(pattern = pattern)
                                 }
                             }
                         }
@@ -3713,7 +4409,7 @@ private fun DesktopHistorySummaryGrid(
                 rowCards.forEach { card ->
                     Surface(
                         modifier = Modifier.weight(1f),
-                        color = Color(0xFF11151F),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RectangleShape,
                     ) {
                         Column(
@@ -3755,7 +4451,7 @@ private fun DesktopHistoryArtistCard(
     plays: Int,
 ) {
     Surface(
-        color = Color(0xFF101727),
+        color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RectangleShape,
     ) {
         Column(
@@ -3781,6 +4477,205 @@ private fun DesktopHistoryArtistCard(
 }
 
 @Composable
+private fun DesktopHistoryAlbumCard(
+    albumRecap: DesktopHistoryAlbumRecap,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RectangleShape,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                text = albumRecap.album,
+                color = FrostWhite,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = FontFamily.SansSerif,
+            )
+            Text(
+                text = albumRecap.artist,
+                color = MutedLavender,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = FontFamily.SansSerif,
+            )
+            Text(
+                text = "${albumRecap.plays} plays • ${formatDurationLong(albumRecap.listenedMs)}",
+                color = VerseBlue,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.SansSerif,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DesktopHistoryTimePatternCard(
+    pattern: DesktopHistoryTimePattern,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RectangleShape,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                text = pattern.label,
+                color = FrostWhite,
+                style = MaterialTheme.typography.titleMedium,
+                fontFamily = FontFamily.SansSerif,
+            )
+            Text(
+                text = "${pattern.plays} plays",
+                color = VerseBlue,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.SansSerif,
+            )
+            Text(
+                text = formatDurationLong(pattern.listenedMs),
+                color = MutedLavender,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.SansSerif,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DesktopHistoryHeatmap(
+    heatmap: List<List<DesktopHistoryHeatmapCell>>,
+) {
+    val weekdayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    val totalPlays = heatmap.flatten().sumOf(DesktopHistoryHeatmapCell::playCount)
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RectangleShape,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Each square is one day. Brighter squares mean more plays on that day over the last ${heatmap.flatten().size} days.",
+                color = MutedLavender,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.SansSerif,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "$totalPlays plays logged",
+                    color = FrostWhite,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontFamily = FontFamily.SansSerif,
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Less",
+                        color = MutedLavender,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.SansSerif,
+                    )
+                    listOf(0, 1, 2, 3, 4).forEach { intensity ->
+                        Surface(
+                            color = historyHeatColor(intensity),
+                            shape = RectangleShape,
+                            modifier = Modifier.size(width = 18.dp, height = 12.dp),
+                        ) {}
+                    }
+                    Text(
+                        text = "More",
+                        color = MutedLavender,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.SansSerif,
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.width(34.dp),
+                ) {
+                    weekdayLabels.forEach { label ->
+                        Box(
+                            modifier = Modifier.height(18.dp),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            Text(
+                                text = label,
+                                color = MutedLavender,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.SansSerif,
+                            )
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    heatmap.forEach { week ->
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            week.forEach { cell ->
+                                Surface(
+                                    color = historyHeatColor(cell.intensity),
+                                    shape = RectangleShape,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(18.dp),
+                                ) {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun historyHeatColor(intensity: Int): Color =
+    if (isDesktopMonochromeTheme(desktopThemeForArtwork)) {
+        when (intensity) {
+            0 -> MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
+            1 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f)
+            2 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
+            3 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.52f)
+            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
+        }
+    } else {
+        when (intensity) {
+            0 -> MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+            1 -> VerseBlue.copy(alpha = 0.28f)
+            2 -> VerseBlue.copy(alpha = 0.46f)
+            3 -> AuroraCyan.copy(alpha = 0.56f)
+            else -> AuroraCyan.copy(alpha = 0.78f)
+        }
+    }
+
+@Composable
 private fun DesktopHistoryDayCard(
     section: DesktopPlayHistoryDaySection,
     trackByPath: Map<String, DesktopTrack>,
@@ -3794,7 +4689,7 @@ private fun DesktopHistoryDayCard(
     val artistCount = dayEntries.map(DesktopPlayHistoryEntry::artist).distinct().size
 
     Surface(
-        color = Color(0xFF0F131D),
+        color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RectangleShape,
     ) {
         Column(
@@ -3917,6 +4812,7 @@ private fun DesktopNowPlaying(
     onToggleShuffle: () -> Unit,
     onToggleRepeat: () -> Unit,
     onOpenLyrics: () -> Unit,
+    onBack: () -> Unit,
     onChooseFolder: () -> Unit,
 ) {
     if (track == null) {
@@ -3931,6 +4827,21 @@ private fun DesktopNowPlaying(
     var isSeeking by remember(track.id) { mutableStateOf(false) }
     var seekPositionMs by remember(track.id) { mutableFloatStateOf(positionMs.toFloat()) }
     val durationValue = track.durationMs.coerceAtLeast(1L).toFloat()
+    val immersiveNowPlaying = desktopThemeNameCompatibility(desktopThemeForArtwork) == "Immersive Flow"
+    val playerAccent = if (immersiveNowPlaying) {
+        lerp(
+            track.palette.getOrElse(2) { track.palette.getOrElse(0) { VerseBlue } },
+            track.palette.getOrElse(0) { VerseBlue },
+            0.28f,
+        )
+    } else {
+        VerseBlue
+    }
+    val playerAccentStrong = if (immersiveNowPlaying) lerp(playerAccent, Color.White, 0.06f) else playerAccent
+    val playerAccentSoft = if (immersiveNowPlaying) playerAccent.copy(alpha = 0.24f) else playerAccent.copy(alpha = 0.22f)
+    val playerAccentSoftEmphasis = if (immersiveNowPlaying) playerAccent.copy(alpha = 0.18f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
+    val playerInactiveTrack = if (immersiveNowPlaying) playerAccent.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.12f)
+    val playerSecondary = if (immersiveNowPlaying) lerp(playerAccent, MaterialTheme.colorScheme.secondary, 0.35f) else MaterialTheme.colorScheme.secondary
 
     LaunchedEffect(track.id, positionMs) {
         if (!isSeeking) {
@@ -3946,132 +4857,161 @@ private fun DesktopNowPlaying(
             track = track,
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
-        Card(
-            modifier = Modifier.weight(0.95f).fillMaxHeight(),
-            colors = CardDefaults.cardColors(containerColor = SurfaceGlass),
-            shape = RoundedCornerShape(30.dp),
+        Column(
+            modifier = Modifier
+                .weight(0.95f)
+                .fillMaxHeight()
+                .padding(28.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(28.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start,
+            ) {
+                SecondaryChip(label = "Back", onClick = onBack)
+            }
+            Spacer(modifier = Modifier.height(18.dp))
+            Text(
+                text = track.title,
+                style = MaterialTheme.typography.displaySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = track.artist,
+                style = MaterialTheme.typography.headlineSmall,
+                color = playerSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = track.album,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            errorMessage?.let { playbackError ->
+                Text(
+                    text = playbackError,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFFFF8E8E),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Slider(
+                value = if (isSeeking) seekPositionMs else positionMs.coerceIn(0L, track.durationMs).toFloat(),
+                onValueChange = { nextValue ->
+                    isSeeking = true
+                    seekPositionMs = nextValue.coerceIn(0f, durationValue)
+                },
+                onValueChangeFinished = {
+                    onSeekTo(seekPositionMs.roundToLong())
+                    isSeeking = false
+                },
+                valueRange = 0f..durationValue,
+                modifier = Modifier.fillMaxWidth(),
+                colors = SliderDefaults.colors(
+                    thumbColor = playerAccentStrong,
+                    activeTrackColor = playerAccentStrong,
+                    inactiveTrackColor = playerInactiveTrack,
+                ),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = track.title,
-                    style = MaterialTheme.typography.displaySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = track.artist,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
-                Text(
-                    text = track.album,
-                    style = MaterialTheme.typography.bodyLarge,
+                    formatDuration(
+                        if (isSeeking) seekPositionMs.roundToLong() else positionMs,
+                    ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                errorMessage?.let { playbackError ->
-                    Text(
-                        text = playbackError,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFFF8E8E),
-                    )
-                }
-                Slider(
-                    value = if (isSeeking) seekPositionMs else positionMs.coerceIn(0L, track.durationMs).toFloat(),
-                    onValueChange = { nextValue ->
-                        isSeeking = true
-                        seekPositionMs = nextValue.coerceIn(0f, durationValue)
-                    },
-                    onValueChangeFinished = {
-                        onSeekTo(seekPositionMs.roundToLong())
-                        isSeeking = false
-                    },
-                    valueRange = 0f..durationValue,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = SliderDefaults.colors(
-                        thumbColor = VerseBlue,
-                        activeTrackColor = VerseBlue,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.12f),
-                    ),
-                )
+                Text(formatDuration(track.durationMs), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        formatDuration(
-                            if (isSeeking) seekPositionMs.roundToLong() else positionMs,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(formatDuration(track.durationMs), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        DesktopPlayerActionChip(
-                            icon = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                            label = if (isFavorite) "Favorite" else "Like",
-                            contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
-                            selected = isFavorite,
-                            onClick = { onToggleFavorite(track) },
-                        )
-                        DesktopPlayerActionChip(
-                            icon = Icons.Rounded.Lyrics,
-                            label = "Lyrics",
-                            contentDescription = "Open lyrics",
-                            selected = false,
-                            emphasize = true,
-                            onClick = onOpenLyrics,
-                        )
-                        DesktopPlayerActionChip(
-                            icon = Icons.Rounded.Repeat,
-                            label = "Repeat",
-                            contentDescription = if (isRepeatEnabled) "Disable repeat" else "Enable repeat",
-                            selected = isRepeatEnabled,
-                            onClick = onToggleRepeat,
-                        )
-                        DesktopPlayerActionChip(
-                            icon = Icons.Rounded.Shuffle,
-                            label = "Shuffle",
-                            contentDescription = if (isShuffleEnabled) "Disable shuffle" else "Enable shuffle",
-                            selected = isShuffleEnabled,
-                            onClick = onToggleShuffle,
+                    DesktopPlayerActionChip(
+                        icon = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        label = if (isFavorite) "Favorite" else "Like",
+                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                        selected = isFavorite,
+                        activeColor = playerAccentStrong,
+                        activeBackgroundColor = playerAccentSoft,
+                        emphasisColor = playerSecondary,
+                        emphasisBackgroundColor = playerAccentSoftEmphasis,
+                        onClick = { onToggleFavorite(track) },
+                    )
+                    DesktopPlayerActionChip(
+                        icon = Icons.Rounded.Lyrics,
+                        label = "Lyrics",
+                        contentDescription = "Open lyrics",
+                        selected = false,
+                        emphasize = true,
+                        activeColor = playerAccentStrong,
+                        activeBackgroundColor = playerAccentSoft,
+                        emphasisColor = playerSecondary,
+                        emphasisBackgroundColor = playerAccentSoftEmphasis,
+                        onClick = onOpenLyrics,
+                    )
+                    DesktopPlayerActionChip(
+                        icon = Icons.Rounded.Repeat,
+                        label = "Repeat",
+                        contentDescription = if (isRepeatEnabled) "Disable repeat" else "Enable repeat",
+                        selected = isRepeatEnabled,
+                        activeColor = playerAccentStrong,
+                        activeBackgroundColor = playerAccentSoft,
+                        emphasisColor = playerSecondary,
+                        emphasisBackgroundColor = playerAccentSoftEmphasis,
+                        onClick = onToggleRepeat,
+                    )
+                    DesktopPlayerActionChip(
+                        icon = Icons.Rounded.Shuffle,
+                        label = "Shuffle",
+                        contentDescription = if (isShuffleEnabled) "Disable shuffle" else "Enable shuffle",
+                        selected = isShuffleEnabled,
+                        activeColor = playerAccentStrong,
+                        activeBackgroundColor = playerAccentSoft,
+                        emphasisColor = playerSecondary,
+                        emphasisBackgroundColor = playerAccentSoftEmphasis,
+                        onClick = onToggleShuffle,
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = onPrevious) {
+                        Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous", tint = playerAccentStrong)
+                    }
+                    IconButton(onClick = onPlayPause, modifier = Modifier.size(72.dp)) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Rounded.PauseCircle else Icons.Rounded.PlayArrow,
+                            contentDescription = "Play pause",
+                            tint = playerAccentStrong,
+                            modifier = Modifier.size(64.dp),
                         )
                     }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(
-                    horizontalArrangement = Arrangement.spacedBy(18.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        IconButton(onClick = onPrevious) {
-                            Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous", tint = FrostWhite)
-                        }
-                        IconButton(onClick = onPlayPause, modifier = Modifier.size(72.dp)) {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Rounded.PauseCircle else Icons.Rounded.PlayArrow,
-                                contentDescription = "Play pause",
-                                tint = VerseBlue,
-                                modifier = Modifier.size(64.dp),
-                            )
-                        }
-                        IconButton(onClick = onNext) {
-                            Icon(Icons.Rounded.SkipNext, contentDescription = "Next", tint = FrostWhite)
-                        }
+                    IconButton(onClick = onNext) {
+                        Icon(Icons.Rounded.SkipNext, contentDescription = "Next", tint = playerAccentStrong)
                     }
                 }
             }
@@ -4286,12 +5226,22 @@ private fun DesktopPlaylistDetail(
 @Composable
 private fun DesktopAlbumDetail(
     album: DesktopAlbumSummary?,
+    albumProfileOverride: DesktopAlbumProfileOverride?,
+    albumLookupUiState: DesktopAlbumLookupUiState,
+    albumManualSearchUiState: DesktopAlbumManualSearchUiState,
     tracks: List<DesktopTrack>,
+    historyEntries: List<DesktopPlayHistoryEntry>,
     currentTrack: DesktopTrack?,
     onBack: () -> Unit,
     onOpenArtist: (String) -> Unit,
     onPlayAlbum: (List<DesktopTrack>) -> Unit,
     onPlayTrack: (DesktopTrack) -> Unit,
+    onImportAlbumProfile: (DesktopAlbumSummary, List<DesktopTrack>) -> Unit,
+    onOpenManualAlbumSearch: (DesktopAlbumSummary, List<DesktopTrack>) -> Unit,
+    onManualAlbumSearchQueryChange: (DesktopAlbumSummary, String) -> Unit,
+    onRunManualAlbumSearch: (DesktopAlbumSummary, String, List<DesktopTrack>) -> Unit,
+    onImportAlbumProfileFromCandidate: (DesktopAlbumSummary, List<DesktopTrack>, String) -> Unit,
+    onDismissManualAlbumSearch: () -> Unit,
     trackMenu: DesktopTrackMenuModel,
 ) {
     if (album == null) {
@@ -4302,13 +5252,55 @@ private fun DesktopAlbumDetail(
         return
     }
 
+    val albumKey = remember(album.artist, album.title) { desktopAlbumKey(album.artist, album.title) }
+    val lookupState = albumLookupUiState.takeIf { it.albumKey == albumKey }
+    val manualSearchState = albumManualSearchUiState.takeIf { it.albumKey == albumKey }
+    var selectedTab by remember(albumKey) { mutableStateOf(DesktopAlbumDetailTab.Tracks) }
+    val stats = remember(albumKey, tracks, historyEntries) {
+        val matchingHistory = historyEntries.filter { it.artist == album.artist && it.album == album.title }
+        DesktopAlbumStats(
+            playCount = matchingHistory.size,
+            listenedMs = matchingHistory.sumOf(DesktopPlayHistoryEntry::listenedMs),
+            lastPlayedAtMs = matchingHistory.maxOfOrNull(DesktopPlayHistoryEntry::playedAtMs),
+            firstAddedAtMs = tracks.minOfOrNull(DesktopTrack::addedAtMs)?.takeIf { it > 0L },
+            newestAddedAtMs = tracks.maxOfOrNull(DesktopTrack::addedAtMs)?.takeIf { it > 0L },
+            trackCount = tracks.size,
+            totalDurationMs = tracks.sumOf(DesktopTrack::durationMs),
+        )
+    }
+    val displayReleaseDate = albumProfileOverride?.releaseDate ?: album.releaseDate
+    val displayGenre = albumProfileOverride?.genre ?: album.genre
+    val displayAbout = albumProfileOverride?.about
+    val importedTrackTitles = albumProfileOverride?.trackTitles.orEmpty()
+    val localTrackTitleKeys = remember(tracks) { tracks.map { normalizeAlbumTrackTitleForMatch(it.title) }.toSet() }
+    val ownedImportedTrackCount = remember(importedTrackTitles, localTrackTitleKeys) {
+        importedTrackTitles.count { normalizeAlbumTrackTitleForMatch(it) in localTrackTitleKeys }
+    }
+    val trackCoverageLabel = remember(stats.trackCount, albumProfileOverride?.totalTrackCount, ownedImportedTrackCount, importedTrackTitles) {
+        when {
+            albumProfileOverride?.totalTrackCount != null -> "${ownedImportedTrackCount}/${albumProfileOverride.totalTrackCount}"
+            importedTrackTitles.isNotEmpty() -> "${ownedImportedTrackCount}/${importedTrackTitles.size}"
+            else -> stats.trackCount.toString()
+        }
+    }
+    val infoRows = remember(album, displayGenre, displayReleaseDate, stats, albumProfileOverride, trackCoverageLabel) {
+        listOfNotNull(
+            "Album artist" to album.artist,
+            "Release date" to displayReleaseDate,
+            "Genre" to displayGenre.takeIf { it.isNotBlank() && !it.equals("Unclassified", ignoreCase = true) },
+            "Tracks" to trackCoverageLabel,
+            "Runtime" to formatDuration(stats.totalDurationMs),
+            albumProfileOverride?.sourcePageTitle?.let { "Source" to it },
+        )
+    }
+
     Row(
         modifier = Modifier.fillMaxSize(),
         horizontalArrangement = Arrangement.spacedBy(0.dp),
     ) {
-        Card(
+        Surface(
             modifier = Modifier.weight(0.9f).fillMaxHeight(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF090B12)),
+            color = MaterialTheme.colorScheme.surface,
             shape = RectangleShape,
         ) {
             Column(
@@ -4334,6 +5326,7 @@ private fun DesktopAlbumDetail(
                     artworkBytes = album.artworkBytes,
                     label = album.title.take(1),
                     modifier = Modifier.fillMaxWidth().height(300.dp),
+                    contentScale = ContentScale.Fit,
                 )
                 Text(album.title, style = MaterialTheme.typography.headlineLarge, color = FrostWhite)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -4353,34 +5346,209 @@ private fun DesktopAlbumDetail(
             modifier = Modifier
                 .width(1.dp)
                 .fillMaxHeight()
-                .background(Color(0xFF171C28)),
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         )
 
-        Card(
+        Box(
             modifier = Modifier.weight(1.1f).fillMaxHeight(),
-            colors = CardDefaults.cardColors(containerColor = SurfaceGlass),
-            shape = RectangleShape,
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(22.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            DesktopBlurredArtworkBackdrop(
+                artworkBytes = album.artworkBytes,
+                palette = album.palette,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = SurfaceGlass.copy(alpha = 0.88f),
+                shape = RectangleShape,
             ) {
-                SectionLabel("Tracks")
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(tracks) { track ->
-                        TrackRow(
-                            track = track,
-                            selected = track.id == currentTrack?.id,
-                            trackMenu = trackMenu,
-                            onClick = { onPlayTrack(track) },
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        SectionLabel(selectedTab.title)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DesktopAlbumDetailTab.entries.forEach { tab ->
+                                Surface(
+                                    color = if (selectedTab == tab) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.44f),
+                                    shape = RoundedCornerShape(18.dp),
+                                    modifier = Modifier.clickable { selectedTab = tab },
+                                ) {
+                                    Text(
+                                        text = tab.title,
+                                        color = if (selectedTab == tab) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    when (selectedTab) {
+                        DesktopAlbumDetailTab.Tracks -> {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                items(tracks) { track ->
+                                    TrackRow(
+                                        track = track,
+                                        selected = track.id == currentTrack?.id,
+                                        trackMenu = trackMenu,
+                                        onClick = { onPlayTrack(track) },
+                                    )
+                                }
+                            }
+                        }
+
+                        DesktopAlbumDetailTab.Info -> {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                item {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        PrimaryChip(
+                                            label = if (lookupState?.isLoading == true) "Searching..." else "Search album info",
+                                            onClick = { onImportAlbumProfile(album, tracks) },
+                                        )
+                                        SecondaryChip(
+                                            label = "Manual search",
+                                            onClick = { onOpenManualAlbumSearch(album, tracks) },
+                                        )
+                                        lookupState?.message?.let { message ->
+                                            Text(
+                                                text = message,
+                                                color = if (lookupState.isError) Color(0xFFFFA5A5) else MutedLavender,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                            )
+                                        }
+                                    }
+                                }
+                                item {
+                                    DesktopInfoBlock(
+                                        title = "About",
+                                        body = displayAbout ?: "Search Wikipedia to import a short album overview. Local metadata like release date and genre will still appear below when available.",
+                                    )
+                                }
+                                item {
+                                    DesktopInfoGrid(rows = infoRows)
+                                }
+                                if (importedTrackTitles.isNotEmpty()) {
+                                    item {
+                                        DesktopAlbumTrackCoverageBlock(
+                                            trackTitles = importedTrackTitles,
+                                            localTrackTitleKeys = localTrackTitleKeys,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        DesktopAlbumDetailTab.Stats -> {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                item {
+                                    DesktopInfoGrid(
+                                        rows = listOf(
+                                            "Play count" to stats.playCount.toString(),
+                                            "Hours listened" to formatDurationLong(stats.listenedMs),
+                                            "Last played" to stats.lastPlayedAtMs?.let(::formatDesktopDateTime).orEmpty().ifBlank { "Not yet" },
+                                            "First added" to stats.firstAddedAtMs?.let(::formatDesktopDateTime).orEmpty().ifBlank { "Unknown" },
+                                            "Last added" to stats.newestAddedAtMs?.let(::formatDesktopDateTime).orEmpty().ifBlank { "Unknown" },
+                                            "Average track length" to tracks.takeIf { it.isNotEmpty() }?.let { formatDuration(stats.totalDurationMs / it.size) }.orEmpty().ifBlank { "0:00" },
+                                        ),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    if (manualSearchState != null) {
+        AlertDialog(
+            onDismissRequest = onDismissManualAlbumSearch,
+            title = { Text("Manual album search", fontFamily = FontFamily.SansSerif) },
+            text = {
+                val manualSearchScrollState = rememberScrollState()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 560.dp)
+                        .verticalScroll(manualSearchScrollState),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedTextField(
+                        value = manualSearchState.query,
+                        onValueChange = { onManualAlbumSearchQueryChange(album, it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Search Wikipedia") },
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PrimaryChip(
+                            label = if (manualSearchState.isLoading) "Searching..." else "Search",
+                            onClick = { onRunManualAlbumSearch(album, manualSearchState.query, tracks) },
+                        )
+                    }
+                    manualSearchState.message?.let { message ->
+                        Text(
+                            text = message,
+                            color = MutedLavender,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        manualSearchState.candidates.forEach { candidate ->
+                            Surface(
+                                color = Color(0xFF101520),
+                                shape = RoundedCornerShape(18.dp),
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        text = candidate.pageTitle,
+                                        color = FrostWhite,
+                                        style = MaterialTheme.typography.titleMedium,
+                                    )
+                                    if (candidate.snippet.isNotBlank()) {
+                                        Text(
+                                            text = candidate.snippet,
+                                            color = MutedLavender,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
+                                    }
+                                    SecondaryChip(
+                                        label = "Use this result",
+                                        onClick = {
+                                            onImportAlbumProfileFromCandidate(album, tracks, candidate.pageTitle)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onDismissManualAlbumSearch) {
+                    Text("Close", fontFamily = FontFamily.SansSerif)
+                }
+            },
+        )
     }
 }
 
@@ -5107,25 +6275,21 @@ private fun DesktopLyrics(
                     LazyColumn(
                         state = lyricsListState,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
                         itemsIndexed(track.lyrics) { index, line ->
                             val isActive = index == activeLyricIndex
-                            Surface(
-                                color = if (isActive) VerseBlue.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.04f),
-                                shape = RoundedCornerShape(20.dp),
-                                modifier = Modifier.clickable { onSeekTo(line.timestampMs) },
-                            ) {
-                                Text(
-                                    text = line.text,
-                                    color = if (isActive) FrostWhite else MutedLavender,
-                                    fontSize = if (isActive) 22.sp else 18.sp,
-                                    fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 18.dp, vertical = 16.dp),
-                                )
-                            }
+                            Text(
+                                text = line.text,
+                                color = if (isActive) FrostWhite else MutedLavender,
+                                fontSize = if (isActive) 22.sp else 18.sp,
+                                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSeekTo(line.timestampMs) }
+                                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                            )
                         }
                     }
                 }
@@ -5136,22 +6300,18 @@ private fun DesktopLyrics(
                     )
                     LazyColumn(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
                         items(track.plainLyrics) { line ->
-                            Surface(
-                                color = Color.White.copy(alpha = 0.04f),
-                                shape = RoundedCornerShape(20.dp),
-                            ) {
-                                Text(
-                                    text = line,
-                                    color = MutedLavender,
-                                    fontSize = 18.sp,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 18.dp, vertical = 16.dp),
-                                )
-                            }
+                            Text(
+                                text = line,
+                                color = MutedLavender,
+                                fontSize = 18.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                            )
                         }
                     }
                 }
@@ -5944,6 +7104,7 @@ private fun DesktopFeatureCard(
                         contentDescription = title,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
+                        colorFilter = desktopArtworkColorFilter(),
                     )
                 } else {
                     Text(
@@ -6610,6 +7771,7 @@ private fun DesktopArtworkPanel(
     artworkBytes: ByteArray?,
     label: String,
     modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
 ) {
     val artwork = rememberArtworkBitmap(artworkBytes)
     Box(
@@ -6623,7 +7785,8 @@ private fun DesktopArtworkPanel(
                 bitmap = artwork,
                 contentDescription = label,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
+                contentScale = contentScale,
+                colorFilter = desktopArtworkColorFilter(),
             )
         } else {
             Text(
@@ -6637,8 +7800,165 @@ private fun DesktopArtworkPanel(
 }
 
 @Composable
+private fun DesktopBlurredArtworkBackdrop(
+    artworkBytes: ByteArray?,
+    palette: List<Color>,
+    modifier: Modifier = Modifier,
+) {
+    val artwork = rememberArtworkBitmap(artworkBytes)
+    val baseTone = palette.firstOrNull() ?: DeepSpace
+    val midTone = palette.getOrNull(1) ?: baseTone
+    val highlightTone = palette.lastOrNull() ?: VerseBlue
+    Box(
+        modifier = modifier
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        baseTone.copy(alpha = 0.64f),
+                        midTone.copy(alpha = 0.46f),
+                        InkBlack,
+                    ),
+                ),
+            ),
+    ) {
+        if (artwork != null) {
+            Image(
+                bitmap = artwork,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(scaleX = 1.22f, scaleY = 1.22f)
+                    .blur(52.dp),
+                contentScale = ContentScale.Crop,
+                alpha = 0.26f,
+                colorFilter = desktopArtworkColorFilter(),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(highlightTone.copy(alpha = 0.22f), Color.Transparent),
+                    ),
+                ),
+        )
+    }
+}
+
+@Composable
+private fun DesktopInfoBlock(
+    title: String,
+    body: String,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+        shape = RectangleShape,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = FrostWhite)
+            Text(body, style = MaterialTheme.typography.bodyLarge, color = MutedLavender)
+        }
+    }
+}
+
+@Composable
+private fun DesktopInfoGrid(
+    rows: List<Pair<String, String?>>,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        rows.filter { !it.second.isNullOrBlank() }.chunked(2).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                rowItems.forEach { (label, value) ->
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f),
+                        shape = RectangleShape,
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(label, style = MaterialTheme.typography.labelLarge, color = MutedLavender)
+                            Text(value.orEmpty(), style = MaterialTheme.typography.bodyLarge, color = FrostWhite)
+                        }
+                    }
+                }
+                if (rowItems.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DesktopAlbumTrackCoverageBlock(
+    trackTitles: List<String>,
+    localTrackTitleKeys: Set<String>,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f),
+        shape = RectangleShape,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Track coverage", style = MaterialTheme.typography.titleMedium, color = FrostWhite)
+            Text(
+                "Imported album track list. Brighter rows are already in your local library.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MutedLavender,
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                trackTitles.forEachIndexed { index, title ->
+                    val owned = normalizeAlbumTrackTitleForMatch(title) in localTrackTitleKeys
+                    Surface(
+                        color = if (owned) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                        } else {
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.38f)
+                        },
+                        shape = RectangleShape,
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "${index + 1}. $title",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (owned) MaterialTheme.colorScheme.primary else FrostWhite,
+                            )
+                            Text(
+                                text = if (owned) "In library" else "Missing",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = if (owned) MaterialTheme.colorScheme.primary else MutedLavender,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun DesktopAppBackdrop(track: DesktopTrack?) {
-    val palette = track?.palette ?: listOf(InkBlack, Color(0xFF060B1B), Color(0xFF0A1226))
+    val immersiveNowPlaying = desktopThemeNameCompatibility(desktopThemeForArtwork) == "Immersive Flow"
+    val palette = if (isDesktopMonochromeTheme(desktopThemeForArtwork)) {
+        listOf(Color(0xFF000000), Color(0xFF111111), Color(0xFF2B2B2B))
+    } else {
+        track?.palette ?: listOf(InkBlack, Color(0xFF060B1B), Color(0xFF0A1226))
+    }
     val artwork = rememberArtworkBitmap(track?.artworkBytes)
     val baseTone = palette.firstOrNull() ?: InkBlack
     val midTone = palette.getOrNull(1) ?: Color(0xFF08101F)
@@ -6650,8 +7970,8 @@ private fun DesktopAppBackdrop(track: DesktopTrack?) {
             .background(
                 Brush.linearGradient(
                     colors = listOf(
-                        baseTone.copy(alpha = 0.48f),
-                        midTone.copy(alpha = 0.28f),
+                        baseTone.copy(alpha = if (immersiveNowPlaying) 0.62f else 0.48f),
+                        midTone.copy(alpha = if (immersiveNowPlaying) 0.40f else 0.28f),
                         InkBlack,
                     ),
                 ),
@@ -6661,9 +7981,16 @@ private fun DesktopAppBackdrop(track: DesktopTrack?) {
             Image(
                 bitmap = artwork,
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = if (immersiveNowPlaying) 1.24f else 1.18f,
+                        scaleY = if (immersiveNowPlaying) 1.24f else 1.18f,
+                    )
+                    .blur(if (immersiveNowPlaying) 56.dp else 48.dp),
                 contentScale = ContentScale.Crop,
-                alpha = 0.16f,
+                alpha = if (immersiveNowPlaying) 0.30f else 0.22f,
+                colorFilter = desktopArtworkColorFilter(),
             )
         }
         Box(
@@ -6672,7 +7999,7 @@ private fun DesktopAppBackdrop(track: DesktopTrack?) {
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            highlightTone.copy(alpha = 0.22f),
+                            highlightTone.copy(alpha = if (immersiveNowPlaying) 0.34f else 0.22f),
                             Color.Transparent,
                         ),
                     ),
@@ -6684,9 +8011,9 @@ private fun DesktopAppBackdrop(track: DesktopTrack?) {
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            highlightTone.copy(alpha = 0.08f),
+                            highlightTone.copy(alpha = if (immersiveNowPlaying) 0.12f else 0.06f),
                             Color.Transparent,
-                            baseTone.copy(alpha = 0.12f),
+                            baseTone.copy(alpha = if (immersiveNowPlaying) 0.18f else 0.10f),
                         ),
                     ),
                 ),
@@ -6697,9 +8024,9 @@ private fun DesktopAppBackdrop(track: DesktopTrack?) {
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            InkBlack.copy(alpha = 0.12f),
-                            DeepSpace.copy(alpha = 0.28f),
-                            InkBlack.copy(alpha = 0.72f),
+                            InkBlack.copy(alpha = 0.20f),
+                            DeepSpace.copy(alpha = 0.42f),
+                            InkBlack.copy(alpha = 0.82f),
                         ),
                     ),
                 ),
@@ -6717,6 +8044,7 @@ private fun AlbumArtHero(
         artworkBytes = track.artworkBytes,
         label = track.album.take(1),
         modifier = modifier,
+        contentScale = ContentScale.Fit,
     )
 }
 
@@ -6727,16 +8055,20 @@ private fun DesktopPlayerActionChip(
     contentDescription: String,
     selected: Boolean,
     emphasize: Boolean = false,
+    activeColor: Color = VerseBlue,
+    activeBackgroundColor: Color = VerseBlue.copy(alpha = 0.22f),
+    emphasisColor: Color = MaterialTheme.colorScheme.secondary,
+    emphasisBackgroundColor: Color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f),
     onClick: () -> Unit,
 ) {
     val backgroundColor = when {
-        selected -> VerseBlue.copy(alpha = 0.22f)
-        emphasize -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
+        selected -> activeBackgroundColor
+        emphasize -> emphasisBackgroundColor
         else -> Color.White.copy(alpha = 0.05f)
     }
     val foregroundColor = when {
-        selected -> VerseBlue
-        emphasize -> MaterialTheme.colorScheme.secondary
+        selected -> activeColor
+        emphasize -> emphasisColor
         else -> FrostWhite
     }
     Surface(
@@ -6785,6 +8117,7 @@ private fun DesktopArtworkThumb(
                 contentDescription = label,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
+                colorFilter = desktopArtworkColorFilter(),
             )
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -6974,6 +8307,40 @@ private fun List<DesktopPlayHistoryEntry>.toHistorySummaryCards(): List<DesktopH
     )
 }
 
+private fun List<DesktopPlayHistoryEntry>.toListeningRecapCards(): List<DesktopHistorySummaryCard> {
+    if (isEmpty()) return emptyList()
+    val now = System.currentTimeMillis()
+    val weekCutoff = now - Duration.ofDays(7).toMillis()
+    val monthCutoff = now - Duration.ofDays(30).toMillis()
+    val weeklyEntries = filter { it.playedAtMs >= weekCutoff }
+    val monthlyEntries = filter { it.playedAtMs >= monthCutoff }
+    val longestStreak = listeningStreaks().maxOfOrNull { it.second } ?: 0
+    val currentStreak = currentListeningStreak()
+
+    return listOf(
+        DesktopHistorySummaryCard(
+            "Last 7 days",
+            if (weeklyEntries.isEmpty()) "0 plays" else "${weeklyEntries.size} plays",
+            formatDurationLong(weeklyEntries.sumOf(DesktopPlayHistoryEntry::listenedMs)),
+        ),
+        DesktopHistorySummaryCard(
+            "Last 30 days",
+            if (monthlyEntries.isEmpty()) "0 plays" else "${monthlyEntries.size} plays",
+            formatDurationLong(monthlyEntries.sumOf(DesktopPlayHistoryEntry::listenedMs)),
+        ),
+        DesktopHistorySummaryCard(
+            "Current streak",
+            if (currentStreak == 1) "1 day" else "$currentStreak days",
+            "Consecutive listening days",
+        ),
+        DesktopHistorySummaryCard(
+            "Longest streak",
+            if (longestStreak == 1) "1 day" else "$longestStreak days",
+            "Best run so far",
+        ),
+    )
+}
+
 private fun List<DesktopPlayHistoryEntry>.topHistoryArtists(limit: Int = 6): List<Pair<String, Int>> =
     groupingBy(DesktopPlayHistoryEntry::artist)
         .eachCount()
@@ -6981,6 +8348,122 @@ private fun List<DesktopPlayHistoryEntry>.topHistoryArtists(limit: Int = 6): Lis
         .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key.lowercase() })
         .take(limit)
         .map { it.key to it.value }
+
+private fun List<DesktopPlayHistoryEntry>.topHistoryAlbums(limit: Int = 6): List<DesktopHistoryAlbumRecap> =
+    groupBy { "${it.artist}::${it.album}" }
+        .values
+        .sortedWith(
+            compareByDescending<List<DesktopPlayHistoryEntry>> { entries -> entries.size }
+                .thenByDescending { entries -> entries.sumOf(DesktopPlayHistoryEntry::listenedMs) }
+                .thenBy { entries -> entries.first().album.lowercase() },
+        )
+        .take(limit)
+        .map { entries ->
+            DesktopHistoryAlbumRecap(
+                artist = entries.first().artist,
+                album = entries.first().album,
+                plays = entries.size,
+                listenedMs = entries.sumOf(DesktopPlayHistoryEntry::listenedMs),
+            )
+        }
+
+private fun List<DesktopPlayHistoryEntry>.toTimeOfDayPatterns(): List<DesktopHistoryTimePattern> {
+    if (isEmpty()) return emptyList()
+    return listOf(
+        "Morning" to entriesForHours(5..11),
+        "Afternoon" to entriesForHours(12..16),
+        "Evening" to entriesForHours(17..21),
+        "Late night" to (entriesForHours(22..23) + entriesForHours(0..4)),
+    ).mapNotNull { (label, entries) ->
+        if (entries.isEmpty()) null else DesktopHistoryTimePattern(
+            label = label,
+            plays = entries.size,
+            listenedMs = entries.sumOf(DesktopPlayHistoryEntry::listenedMs),
+        )
+    }.sortedByDescending(DesktopHistoryTimePattern::listenedMs)
+}
+
+private fun List<DesktopPlayHistoryEntry>.toHistoryHeatmap(days: Int = 84): List<List<DesktopHistoryHeatmapCell>> {
+    if (isEmpty()) return emptyList()
+    val endDate = LocalDate.now()
+    val startDate = endDate.minusDays((days - 1).toLong())
+    val playsByDate = groupBy {
+        Instant.ofEpochMilli(it.playedAtMs)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+    }.mapValues { (_, entries) -> entries.size }
+    val maxPlays = playsByDate.values.maxOrNull()?.coerceAtLeast(1) ?: 1
+    val firstGridDate = startDate.minusDays(startDate.dayOfWeek.ordinal.toLong())
+    val totalDays = java.time.temporal.ChronoUnit.DAYS.between(firstGridDate, endDate).toInt() + 1
+    return (0 until totalDays)
+        .map { offset -> firstGridDate.plusDays(offset.toLong()) }
+        .chunked(7)
+        .map { week ->
+            week.map { date ->
+                val playCount = playsByDate[date] ?: 0
+                val intensity = when {
+                    playCount <= 0 -> 0
+                    playCount >= maxPlays -> 4
+                    else -> ((playCount.toFloat() / maxPlays.toFloat()) * 4f).toInt().coerceIn(1, 3)
+                }
+                DesktopHistoryHeatmapCell(
+                    date = date,
+                    intensity = intensity,
+                    playCount = playCount,
+                )
+            }
+        }
+}
+
+private fun List<DesktopPlayHistoryEntry>.entriesForHours(hours: IntRange): List<DesktopPlayHistoryEntry> =
+    filter { entry ->
+        val hour = Instant.ofEpochMilli(entry.playedAtMs).atZone(ZoneId.systemDefault()).hour
+        hour in hours
+    }
+
+private fun List<DesktopPlayHistoryEntry>.currentListeningStreak(): Int {
+    val daySet = listeningDays()
+    if (daySet.isEmpty()) return 0
+    var cursor = when {
+        LocalDate.now() in daySet -> LocalDate.now()
+        LocalDate.now().minusDays(1) in daySet -> LocalDate.now().minusDays(1)
+        else -> return 0
+    }
+    var streak = 0
+    while (cursor in daySet) {
+        streak += 1
+        cursor = cursor.minusDays(1)
+    }
+    return streak
+}
+
+private fun List<DesktopPlayHistoryEntry>.listeningStreaks(): List<Pair<LocalDate, Int>> {
+    val sortedDays = listeningDays().sorted()
+    if (sortedDays.isEmpty()) return emptyList()
+    val streaks = mutableListOf<Pair<LocalDate, Int>>()
+    var streakStart = sortedDays.first()
+    var streakLength = 1
+    for (index in 1 until sortedDays.size) {
+        val current = sortedDays[index]
+        val previous = sortedDays[index - 1]
+        if (current == previous.plusDays(1)) {
+            streakLength += 1
+        } else {
+            streaks += streakStart to streakLength
+            streakStart = current
+            streakLength = 1
+        }
+    }
+    streaks += streakStart to streakLength
+    return streaks
+}
+
+private fun List<DesktopPlayHistoryEntry>.listeningDays(): Set<LocalDate> =
+    map {
+        Instant.ofEpochMilli(it.playedAtMs)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+    }.toSet()
 
 private fun desktopGreetingForNow(now: LocalTime = LocalTime.now()): String =
     when (now.hour) {
@@ -7159,6 +8642,11 @@ private fun formatHistoryEntryTime(playedAtMs: Long): String =
     Instant.ofEpochMilli(playedAtMs)
         .atZone(ZoneId.systemDefault())
         .format(DateTimeFormatter.ofPattern("h:mm a"))
+
+private fun formatDesktopDateTime(timestampMs: Long): String =
+    Instant.ofEpochMilli(timestampMs)
+        .atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a"))
 
 private fun Int.floorMod(divisor: Int): Int = ((this % divisor) + divisor) % divisor
 
@@ -7440,13 +8928,145 @@ private suspend fun fetchDesktopArtistProfileFromWikipedia(
         if (bio == null && imageUrl == null) {
             error("Wikipedia found a page, but it didn't return a usable bio or photo.")
         }
-
         DesktopFetchedArtistProfile(
             bio = bio,
             imageUrl = imageUrl,
             sourcePageTitle = pageTitle,
         )
     }
+
+private suspend fun fetchDesktopAlbumProfileFromWikipedia(
+    album: DesktopAlbumSummary,
+    albumTracks: List<DesktopTrack>,
+): DesktopFetchedAlbumProfile =
+    withContext(Dispatchers.IO) {
+        val client = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build()
+
+        val primaryTrack = albumTracks.firstOrNull()
+        val queries = buildList {
+            add("${album.title} ${album.artist} album")
+            primaryTrack?.title?.takeIf(String::isNotBlank)?.let { add("${album.title} ${album.artist} $it album") }
+            album.releaseDate?.takeIf(String::isNotBlank)?.let { add("${album.title} ${album.artist} $it album") }
+        }.distinct()
+
+        val candidate = queries
+            .flatMap { query -> searchWikipediaCandidates(client, query, album.artist, primaryTrack) }
+            .firstOrNull { result ->
+                val title = result.pageTitle.lowercase()
+                val snippet = result.snippet.lowercase()
+                album.title.lowercase() in title || album.title.lowercase() in snippet
+            }
+            ?: error("VerseFlow couldn't find a reliable Wikipedia page for ${album.title}.")
+
+        fetchDesktopAlbumProfileFromWikipediaPage(
+            album = album,
+            albumTracks = albumTracks,
+            pageTitle = candidate.pageTitle,
+        )
+    }
+
+private suspend fun fetchDesktopAlbumProfileFromWikipediaPage(
+    album: DesktopAlbumSummary,
+    albumTracks: List<DesktopTrack>,
+    pageTitle: String,
+): DesktopFetchedAlbumProfile =
+    withContext(Dispatchers.IO) {
+        val client = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build()
+        val payload = fetchWikipediaSummaryPayload(client, pageTitle)
+        val bio = payload.optString("extract")
+            .substringBefore("\n")
+            .trim()
+            .ifBlank { null }
+        val releaseDate = Regex("""\b(?:released|release[ds]? on)\s+([A-Z][a-z]+ \d{1,2}, \d{4}|\d{4})""")
+            .find(payload.optString("extract"))
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            ?: album.releaseDate
+        val trackTitles = fetchWikipediaAlbumTrackTitles(client, pageTitle)
+        DesktopFetchedAlbumProfile(
+            bio = bio,
+            releaseDate = releaseDate,
+            genre = album.genre.takeIf { it.isNotBlank() && !it.equals("Unclassified", ignoreCase = true) },
+            sourcePageTitle = pageTitle,
+            totalTrackCount = trackTitles.size.takeIf { it > 0 },
+            trackTitles = trackTitles,
+        )
+    }
+
+private fun fetchWikipediaAlbumTrackTitles(
+    client: HttpClient,
+    pageTitle: String,
+): List<String> {
+    val encodedTitle = URLEncoder.encode(pageTitle, Charsets.UTF_8)
+    val request = HttpRequest.newBuilder()
+        .uri(
+            URI(
+                "https://en.wikipedia.org/w/api.php?action=query&prop=revisions&titles=$encodedTitle&rvslots=main&rvprop=content&formatversion=2&format=json&redirects=1",
+            ),
+        )
+        .timeout(Duration.ofSeconds(12))
+        .header("User-Agent", "VerseFlowDesktop/1.0")
+        .GET()
+        .build()
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+    if (response.statusCode() !in 200..299) return emptyList()
+    val payload = JSONObject(response.body())
+    val content = payload
+        .optJSONObject("query")
+        ?.optJSONArray("pages")
+        ?.optJSONObject(0)
+        ?.optJSONArray("revisions")
+        ?.optJSONObject(0)
+        ?.optJSONObject("slots")
+        ?.optJSONObject("main")
+        ?.optString("content")
+        .orEmpty()
+    if (content.isBlank()) return emptyList()
+
+    val trackSection = Regex("""(?is)==+\s*Track listing\s*==+(.*?)(?:\n==[^=].*?==|\z)""")
+        .find(content)
+        ?.groupValues
+        ?.getOrNull(1)
+        .orEmpty()
+    if (trackSection.isBlank()) return emptyList()
+
+    val titlesFromTemplate = Regex("""(?im)^\|\s*title\d+\s*=\s*(.+)$""")
+        .findAll(trackSection)
+        .mapNotNull { match -> sanitizeWikipediaTrackTitle(match.groupValues.getOrNull(1).orEmpty()) }
+        .toList()
+    if (titlesFromTemplate.isNotEmpty()) return titlesFromTemplate.distinct()
+
+    return Regex("""(?im)^#\s*(.+)$""")
+        .findAll(trackSection)
+        .mapNotNull { match -> sanitizeWikipediaTrackTitle(match.groupValues.getOrNull(1).orEmpty()) }
+        .distinct()
+        .toList()
+}
+
+private fun sanitizeWikipediaTrackTitle(raw: String): String? {
+    val withoutTemplates = raw.replace(Regex("""\{\{.*?}}"""), "")
+    val withoutLinks = withoutTemplates
+        .replace(Regex("""\[\[([^|\]]+\|)?([^\]]+)]]"""), "$2")
+        .replace(Regex("""''+"""), "")
+        .replace(Regex("""<.*?>"""), "")
+        .replace(Regex("""\s*\(feat\..*?$""", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("""\s*\|.*$"""), "")
+        .trim()
+        .trim('"')
+    return withoutLinks.takeIf(String::isNotBlank)
+}
+
+private fun normalizeAlbumTrackTitleForMatch(title: String): String =
+    title
+        .lowercase()
+        .replace(Regex("""(?i)\bfeat(?:uring)?\.?.*$"""), "")
+        .replace(Regex("""[^a-z0-9]+"""), "")
+        .trim()
 
 private fun searchWikipediaArtistCandidate(
     client: HttpClient,

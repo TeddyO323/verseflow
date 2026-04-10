@@ -510,32 +510,24 @@ fun LibraryScreen(
                                 verticalArrangement = Arrangement.spacedBy(1.dp),
                             ) {
                                 item {
-                                    GlassPanel(
+                                    Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clickable(onClick = onShuffleAllSongs),
-                                        shape = RectangleShape,
-                                        surfaceAlpha = 0.44f,
-                                        surfaceVariantAlpha = 0.10f,
+                                            .clickable(onClick = onShuffleAllSongs)
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Text(
-                                                text = "Shuffle all songs",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                            )
-                                            Icon(
-                                                imageVector = Icons.Rounded.Shuffle,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.secondary,
-                                            )
-                                        }
+                                        Text(
+                                            text = "Shuffle all songs",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Rounded.Shuffle,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.secondary,
+                                        )
                                     }
                                 }
                                 items(alphabeticalSongs, key = { it.id }) { song ->
@@ -589,7 +581,7 @@ fun LibraryScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 if (isCarLandscapeMode) {
-                                    items(alphabeticalAlbums.chunked(2), key = { row -> row.joinToString { it.id } }) { rowAlbums ->
+                                    items(alphabeticalAlbums.chunked(3), key = { row -> row.joinToString { it.id } }) { rowAlbums ->
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -610,7 +602,7 @@ fun LibraryScreen(
                                                     fallbackMediaUri = albumFallbackMediaById[album.id],
                                                 )
                                             }
-                                            if (rowAlbums.size == 1) {
+                                            repeat(3 - rowAlbums.size) {
                                                 Spacer(modifier = Modifier.weight(1f))
                                             }
                                         }
@@ -656,23 +648,33 @@ fun LibraryScreen(
                         LazyColumn(
                             state = artistsListState,
                             contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(if (isCarLandscapeMode) 1.dp else 8.dp),
                         ) {
-                            items(alphabeticalArtists.chunked(2), key = { row -> row.joinToString { it.id } }) { rowArtists ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    rowArtists.forEach { artist ->
-                                        LibraryArtistCard(
-                                            artist = artist,
-                                            songCount = uiState.songs.count { it.artistId == artist.id },
-                                            onClick = { onArtistClick(artist) },
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                    }
-                                    if (rowArtists.size == 1) {
-                                        Spacer(modifier = Modifier.weight(1f))
+                            if (isCarLandscapeMode) {
+                                items(alphabeticalArtists, key = { it.id }) { artist ->
+                                    LibraryArtistListItem(
+                                        artist = artist,
+                                        songCount = uiState.songs.count { it.artistId == artist.id },
+                                        onClick = { onArtistClick(artist) },
+                                    )
+                                }
+                            } else {
+                                items(alphabeticalArtists.chunked(2), key = { row -> row.joinToString { it.id } }) { rowArtists ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        rowArtists.forEach { artist ->
+                                            LibraryArtistCard(
+                                                artist = artist,
+                                                songCount = uiState.songs.count { it.artistId == artist.id },
+                                                onClick = { onArtistClick(artist) },
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                        }
+                                        if (rowArtists.size == 1) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
                                     }
                                 }
                             }
@@ -683,32 +685,40 @@ fun LibraryScreen(
                         LazyColumn(
                             state = playlistsListState,
                             contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(if (isCarLandscapeMode) 1.dp else 8.dp),
                         ) {
                             items(visiblePlaylists, key = { it.id }) { playlist ->
-                                Box {
-                                    PlaylistCard(
+                                if (isCarLandscapeMode) {
+                                    LibraryPlaylistListItem(
                                         playlist = playlist,
                                         onClick = { onPlaylistClick(playlist) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RectangleShape,
-                                        fixedWidth = null,
-                                        surfaceAlpha = 0.48f,
-                                        surfaceVariantAlpha = 0.12f,
-                                        topArtworkBleed = true,
-                                        artworkHeight = 208.dp,
+                                        onDelete = { onDeletePlaylist(playlist.id) },
                                     )
-                                    IconButton(
-                                        onClick = { onDeletePlaylist(playlist.id) },
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .padding(end = 6.dp, bottom = 6.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Delete,
-                                            contentDescription = "Delete playlist",
-                                            tint = MaterialTheme.colorScheme.onSurface,
+                                } else {
+                                    Box {
+                                        PlaylistCard(
+                                            playlist = playlist,
+                                            onClick = { onPlaylistClick(playlist) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RectangleShape,
+                                            fixedWidth = null,
+                                            surfaceAlpha = 0.48f,
+                                            surfaceVariantAlpha = 0.12f,
+                                            topArtworkBleed = true,
+                                            artworkHeight = 208.dp,
                                         )
+                                        IconButton(
+                                            onClick = { onDeletePlaylist(playlist.id) },
+                                            modifier = Modifier
+                                                .align(Alignment.BottomEnd)
+                                                .padding(end = 6.dp, bottom = 6.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Delete,
+                                                contentDescription = "Delete playlist",
+                                                tint = MaterialTheme.colorScheme.onSurface,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -726,20 +736,27 @@ fun LibraryScreen(
                             LazyColumn(
                                 state = foldersListState,
                                 contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(if (isCarLandscapeMode) 1.dp else 8.dp),
                             ) {
                                 items(folders, key = { it.path }) { folder ->
-                                    LibraryFolderCard(
-                                        summary = folder,
-                                        onClick = { selectedFolderPath = folder.path },
-                                    )
+                                    if (isCarLandscapeMode) {
+                                        LibraryFolderListItem(
+                                            summary = folder,
+                                            onClick = { selectedFolderPath = folder.path },
+                                        )
+                                    } else {
+                                        LibraryFolderCard(
+                                            summary = folder,
+                                            onClick = { selectedFolderPath = folder.path },
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
                     LibraryTab.Genres -> {
-                        if (genreGridView) {
+                        if (genreGridView && !isCarLandscapeMode) {
                             LazyColumn(
                                 state = genresListState,
                                 contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp),
@@ -844,6 +861,62 @@ private fun LibraryArtistCard(
                 )
                 Text(
                     text = "$songCount songs in library",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryArtistListItem(
+    artist: Artist,
+    songCount: Int,
+    onClick: () -> Unit,
+) {
+    GlassPanel(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RectangleShape,
+        surfaceAlpha = 0f,
+        surfaceVariantAlpha = 0f,
+        borderAlpha = 0f,
+        shadowElevation = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AlbumArtwork(
+                title = artist.name,
+                subtitle = artist.genre,
+                palette = artist.heroPalette,
+                artworkUri = artist.photoUri,
+                modifier = Modifier.size(54.dp),
+                shape = RectangleShape,
+                borderColor = Color.Transparent,
+                showOverlay = false,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = artist.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${artist.genre} • $songCount songs",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -1022,6 +1095,69 @@ private fun LibraryGenreListItem(
 }
 
 @Composable
+private fun LibraryPlaylistListItem(
+    playlist: Playlist,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    GlassPanel(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RectangleShape,
+        surfaceAlpha = 0f,
+        surfaceVariantAlpha = 0f,
+        borderAlpha = 0f,
+        shadowElevation = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AlbumArtwork(
+                title = playlist.title,
+                subtitle = playlist.curator,
+                palette = playlist.palette,
+                artworkUri = playlist.artworkUri,
+                modifier = Modifier.size(54.dp),
+                shape = RectangleShape,
+                borderColor = Color.Transparent,
+                showOverlay = false,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = playlist.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${playlist.curator} • ${playlist.trackIds.size} songs",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = "Delete playlist",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun LibraryFolderCard(
     summary: FolderSummary,
     onClick: () -> Unit,
@@ -1087,6 +1223,67 @@ private fun LibraryFolderCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun LibraryFolderListItem(
+    summary: FolderSummary,
+    onClick: () -> Unit,
+) {
+    GlassPanel(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RectangleShape,
+        surfaceAlpha = 0f,
+        surfaceVariantAlpha = 0f,
+        borderAlpha = 0f,
+        shadowElevation = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AlbumArtwork(
+                title = summary.name,
+                subtitle = "Folder",
+                palette = summary.palette,
+                artworkUri = summary.artworkUri,
+                fallbackMediaUri = summary.fallbackMediaUri,
+                modifier = Modifier.size(54.dp),
+                shape = RectangleShape,
+                borderColor = Color.Transparent,
+                showOverlay = false,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = summary.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${summary.songCount} songs • ${summary.artistCount} artists",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                imageVector = Icons.Rounded.Folder,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.secondary,
+            )
         }
     }
 }

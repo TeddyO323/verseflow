@@ -32,6 +32,15 @@ data class DesktopArtistProfileOverride(
     val about: String? = null,
 )
 
+data class DesktopAlbumProfileOverride(
+    val about: String? = null,
+    val releaseDate: String? = null,
+    val genre: String? = null,
+    val sourcePageTitle: String? = null,
+    val totalTrackCount: Int? = null,
+    val trackTitles: List<String> = emptyList(),
+)
+
 data class DesktopPlayHistoryEntry(
     val trackPath: String,
     val title: String,
@@ -253,6 +262,86 @@ class DesktopAppStore {
         preferences.remove(KEY_ARTIST_PROFILE_OVERRIDES)
     }
 
+    fun loadAlbumProfileOverrides(): Map<String, DesktopAlbumProfileOverride> {
+        val nodeBackedOverrides = loadAlbumProfileOverridesFromNode()
+        if (nodeBackedOverrides.isNotEmpty()) return nodeBackedOverrides
+
+        val raw = preferences.get(KEY_ALBUM_PROFILE_OVERRIDES, null)?.trim().orEmpty()
+        if (raw.isBlank()) return emptyMap()
+
+        return runCatching {
+            val payload = JSONObject(raw)
+            payload.keys().asSequence()
+                .mapNotNull { albumKey ->
+                    val overridePayload = payload.optJSONObject(albumKey) ?: return@mapNotNull null
+                    albumKey to DesktopAlbumProfileOverride(
+                        about = overridePayload.optString("about").ifBlank { null },
+                        releaseDate = overridePayload.optString("releaseDate").ifBlank { null },
+                        genre = overridePayload.optString("genre").ifBlank { null },
+                        sourcePageTitle = overridePayload.optString("sourcePageTitle").ifBlank { null },
+                        totalTrackCount = overridePayload.optInt("totalTrackCount").takeIf { it > 0 },
+                        trackTitles = (overridePayload.optJSONArray("trackTitles") ?: JSONArray()).let { titles ->
+                            (0 until titles.length()).mapNotNull { index ->
+                                titles.optString(index).trim().ifBlank { null }
+                            }
+                        },
+                    )
+                }
+                .toMap()
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveAlbumProfileOverrides(overrides: Map<String, DesktopAlbumProfileOverride>) {
+        val profilesNode = preferences.node(KEY_ALBUM_PROFILE_OVERRIDES_NODE)
+        runCatching {
+            profilesNode.childrenNames().forEach { childName ->
+                profilesNode.node(childName).removeNode()
+            }
+        }
+        if (overrides.isEmpty()) {
+            preferences.remove(KEY_ALBUM_PROFILE_OVERRIDES)
+            return
+        }
+        overrides.toSortedMap().forEach { (albumKey, value) ->
+            val child = profilesNode.node(albumProfileNodeName(albumKey))
+            child.put(KEY_ALBUM_KEY, albumKey.take(MAX_ALBUM_KEY_LENGTH))
+            value.about
+                ?.trim()
+                ?.takeIf(String::isNotEmpty)
+                ?.take(MAX_ALBUM_ABOUT_LENGTH)
+                ?.let { child.put(KEY_ALBUM_ABOUT, it) }
+                ?: child.remove(KEY_ALBUM_ABOUT)
+            value.releaseDate
+                ?.trim()
+                ?.takeIf(String::isNotEmpty)
+                ?.take(MAX_ALBUM_DATE_LENGTH)
+                ?.let { child.put(KEY_ALBUM_RELEASE_DATE, it) }
+                ?: child.remove(KEY_ALBUM_RELEASE_DATE)
+            value.genre
+                ?.trim()
+                ?.takeIf(String::isNotEmpty)
+                ?.take(MAX_ALBUM_GENRE_LENGTH)
+                ?.let { child.put(KEY_ALBUM_GENRE, it) }
+                ?: child.remove(KEY_ALBUM_GENRE)
+            value.sourcePageTitle
+                ?.trim()
+                ?.takeIf(String::isNotEmpty)
+                ?.take(MAX_ALBUM_SOURCE_LENGTH)
+                ?.let { child.put(KEY_ALBUM_SOURCE_PAGE, it) }
+                ?: child.remove(KEY_ALBUM_SOURCE_PAGE)
+            value.totalTrackCount
+                ?.takeIf { it > 0 }
+                ?.let { child.putInt(KEY_ALBUM_TOTAL_TRACK_COUNT, it) }
+                ?: child.remove(KEY_ALBUM_TOTAL_TRACK_COUNT)
+            if (value.trackTitles.isNotEmpty()) {
+                child.put(KEY_ALBUM_TRACK_TITLES, JSONArray(value.trackTitles.take(MAX_ALBUM_TRACK_TITLES)).toString())
+            } else {
+                child.remove(KEY_ALBUM_TRACK_TITLES)
+            }
+        }
+        preferences.remove(KEY_ALBUM_PROFILE_OVERRIDES)
+    }
+
     private fun loadArtistProfileOverridesFromNode(): Map<String, DesktopArtistProfileOverride> {
         val profilesNode = preferences.node(KEY_ARTIST_PROFILE_OVERRIDES_NODE)
         return runCatching {
@@ -268,6 +357,35 @@ class DesktopAppStore {
         }.getOrDefault(emptyMap())
     }
 
+    private fun loadAlbumProfileOverridesFromNode(): Map<String, DesktopAlbumProfileOverride> {
+        val profilesNode = preferences.node(KEY_ALBUM_PROFILE_OVERRIDES_NODE)
+        return runCatching {
+            profilesNode.childrenNames().mapNotNull { childName ->
+                val child = profilesNode.node(childName)
+                val albumKey = child.get(KEY_ALBUM_KEY, null)?.trim().orEmpty()
+                if (albumKey.isBlank()) return@mapNotNull null
+                albumKey to DesktopAlbumProfileOverride(
+                    about = child.get(KEY_ALBUM_ABOUT, null)?.trim()?.ifBlank { null },
+                    releaseDate = child.get(KEY_ALBUM_RELEASE_DATE, null)?.trim()?.ifBlank { null },
+                    genre = child.get(KEY_ALBUM_GENRE, null)?.trim()?.ifBlank { null },
+                    sourcePageTitle = child.get(KEY_ALBUM_SOURCE_PAGE, null)?.trim()?.ifBlank { null },
+                    totalTrackCount = child.getInt(KEY_ALBUM_TOTAL_TRACK_COUNT, 0).takeIf { it > 0 },
+                    trackTitles = child.get(KEY_ALBUM_TRACK_TITLES, null)?.trim().orEmpty()
+                        .takeIf(String::isNotBlank)
+                        ?.let { raw ->
+                            runCatching {
+                                val payload = JSONArray(raw)
+                                (0 until payload.length()).mapNotNull { index ->
+                                    payload.optString(index).trim().ifBlank { null }
+                                }
+                            }.getOrDefault(emptyList())
+                        }
+                        ?: emptyList(),
+                )
+            }.toMap()
+        }.getOrDefault(emptyMap())
+    }
+
     private fun artistProfileNodeName(artistName: String): String {
         val normalized = artistName
             .lowercase()
@@ -276,6 +394,17 @@ class DesktopAppStore {
             .ifBlank { "artist" }
             .take(40)
         val suffix = artistName.hashCode().toUInt().toString(16)
+        return "${normalized}_$suffix"
+    }
+
+    private fun albumProfileNodeName(albumKey: String): String {
+        val normalized = albumKey
+            .lowercase()
+            .replace(Regex("""[^a-z0-9]+"""), "_")
+            .trim('_')
+            .ifBlank { "album" }
+            .take(40)
+        val suffix = albumKey.hashCode().toUInt().toString(16)
         return "${normalized}_$suffix"
     }
 
@@ -377,9 +506,18 @@ class DesktopAppStore {
         const val KEY_TRACK_OVERRIDES = "desktop_track_overrides_json"
         const val KEY_ARTIST_PROFILE_OVERRIDES = "desktop_artist_profile_overrides_json"
         const val KEY_ARTIST_PROFILE_OVERRIDES_NODE = "desktop_artist_profile_overrides_v2"
+        const val KEY_ALBUM_PROFILE_OVERRIDES = "desktop_album_profile_overrides_json"
+        const val KEY_ALBUM_PROFILE_OVERRIDES_NODE = "desktop_album_profile_overrides_v1"
         const val KEY_ARTIST_NAME = "artist_name"
         const val KEY_ARTIST_PHOTO_PATH = "photo_path"
         const val KEY_ARTIST_ABOUT = "about"
+        const val KEY_ALBUM_KEY = "album_key"
+        const val KEY_ALBUM_ABOUT = "about"
+        const val KEY_ALBUM_RELEASE_DATE = "release_date"
+        const val KEY_ALBUM_GENRE = "genre"
+        const val KEY_ALBUM_SOURCE_PAGE = "source_page"
+        const val KEY_ALBUM_TOTAL_TRACK_COUNT = "total_track_count"
+        const val KEY_ALBUM_TRACK_TITLES = "track_titles"
         const val KEY_PLAY_HISTORY = "desktop_play_history_json"
         const val KEY_PLAY_HISTORY_NODE = "desktop_play_history_v2"
         const val KEY_HISTORY_TRACK_PATH = "track_path"
@@ -393,6 +531,12 @@ class DesktopAppStore {
         const val MAX_ARTIST_NAME_LENGTH = 256
         const val MAX_PHOTO_PATH_LENGTH = 2048
         const val MAX_ARTIST_ABOUT_LENGTH = 4000
+        const val MAX_ALBUM_KEY_LENGTH = 320
+        const val MAX_ALBUM_ABOUT_LENGTH = 4000
+        const val MAX_ALBUM_DATE_LENGTH = 64
+        const val MAX_ALBUM_GENRE_LENGTH = 256
+        const val MAX_ALBUM_SOURCE_LENGTH = 256
+        const val MAX_ALBUM_TRACK_TITLES = 120
         const val MAX_HISTORY_TEXT_LENGTH = 2048
     }
 }

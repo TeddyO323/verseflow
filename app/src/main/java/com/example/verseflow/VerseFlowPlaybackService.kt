@@ -47,6 +47,7 @@ class VerseFlowPlaybackService : MediaLibraryService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var lyricsRefreshJob: Job? = null
     private var lastLyricsSnapshotKey: String? = null
+    private var preservedSessionForTaskRemoval = false
 
     private val deviceAudioLoader by lazy { DeviceAudioStoreLoader(applicationContext) }
     private val lyricsCacheStore by lazy { LyricsCacheStore(applicationContext) }
@@ -104,17 +105,19 @@ class VerseFlowPlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = librarySession
 
     override fun onTaskRemoved(rootIntent: android.content.Intent?) {
+        persistPlaybackSession()
+        preservedSessionForTaskRemoval = true
         player.pause()
         player.stop()
-        player.clearMediaItems()
-        persistPlaybackSession()
         stopSelf()
     }
 
     override fun onDestroy() {
         lyricsRefreshJob?.cancel()
         serviceScope.cancel()
-        persistPlaybackSession()
+        if (!preservedSessionForTaskRemoval) {
+            persistPlaybackSession()
+        }
         librarySession?.release()
         librarySession = null
         player.release()

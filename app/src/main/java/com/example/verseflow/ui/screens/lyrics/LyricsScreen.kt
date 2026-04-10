@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -114,6 +116,8 @@ fun LyricsScreen(
     val activeLine = syncedLyrics.getOrNull(activeIndex)?.text
     val isCarLandscapeMode = rememberIsCarLandscapeMode()
     val carArtworkUri = rememberCarModeArtworkUri(uiState.profile.settings.useTestArtwork)
+    val effectiveArtworkUri = carArtworkUri ?: song.artworkUri
+    val effectiveFallbackMediaUri = if (carArtworkUri != null) null else song.mediaUri
     val listState = rememberLazyListState()
     val showingSyncedLyrics = uiState.playback.lyricsDisplayMode == LyricsDisplayMode.Synced && syncedLyrics.isNotEmpty()
     val view = LocalView.current
@@ -166,8 +170,8 @@ fun LyricsScreen(
     ) {
         ArtworkReactiveBackdrop(
             palette = song.palette,
-            artworkUri = song.artworkUri,
-            fallbackMediaUri = song.mediaUri,
+            artworkUri = effectiveArtworkUri,
+            fallbackMediaUri = effectiveFallbackMediaUri,
             modifier = Modifier.fillMaxSize(),
         )
         if (isCarLandscapeMode) {
@@ -194,12 +198,13 @@ fun LyricsScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .padding(vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -226,184 +231,193 @@ fun LyricsScreen(
                 )
             }
             GlassPanel(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RectangleShape,
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Text(
-                                text = song.title,
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                            )
-                            Text(
-                                text = uiState.artistsById[song.artistId]?.name.orEmpty(),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        song.lyricsAttribution?.let { attribution ->
-                            Text(
-                                text = attribution,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.secondary,
-                            )
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        LyricsDisplayMode.entries.forEach { mode ->
-                            VerseFilterChip(
-                                label = mode.label,
-                                selected = mode == uiState.playback.lyricsDisplayMode,
-                                onClick = { onModeSelected(mode) },
-                            )
-                        }
-                        VerseFilterChip(
-                            label = "Search lyrics",
-                            selected = uiState.manualLyricsSearch.isVisible,
-                            onClick = onManualSearchRequested,
-                        )
-                        if (showingSyncedLyrics && !followLiveLyrics) {
-                            VerseFilterChip(
-                                label = "Jump live",
-                                selected = false,
-                                onClick = {
-                                    followLiveLyrics = true
-                                    coroutineScope.launch {
-                                        autoScrolling = true
-                                        listState.animateScrollToItem((activeIndex - 2).coerceAtLeast(0))
-                                        autoScrolling = false
-                                    }
-                                },
-                            )
-                        }
-                    }
-                    if (uiState.playback.lyricsDisplayMode == LyricsDisplayMode.Synced && syncedLyrics.isEmpty() && plainLyrics.isNotEmpty()) {
-                        Text(
-                            text = "Only plain lyrics were found for this track, so timing is unavailable.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-            ) {
-                if (lyricsStatus == LyricsLoadState.Loading && syncedLyrics.isEmpty() && plainLyrics.isEmpty()) {
-                    GlassPanel(
-                        modifier = Modifier.fillMaxSize(),
-                        shape = RectangleShape,
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(24.dp),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
-                            Text(
-                                text = "Fetching live lyrics for this song...",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(top = 18.dp),
-                            )
-                            Text(
-                                text = "VerseFlow is matching this local file with online lyric timing.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
-                        }
-                    }
-                } else if (showingSyncedLyrics) {
-                    GlassPanel(
-                        modifier = Modifier.fillMaxSize(),
-                        shape = RectangleShape,
-                    ) {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(vertical = 84.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp),
-                        ) {
-                            itemsIndexed(syncedLyrics, key = { _, item -> item.timestampMs }) { index, line ->
-                                LyricsLineChip(
-                                    text = line.text,
-                                    active = index == activeIndex,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RectangleShape,
-                                )
-                            }
-                        }
-                    }
-                } else if (plainLyrics.isNotEmpty()) {
-                    GlassPanel(
-                        modifier = Modifier.fillMaxSize(),
-                        shape = RectangleShape,
-                    ) {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(vertical = 56.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp),
-                        ) {
-                            itemsIndexed(plainLyrics, key = { index, line -> "$index-$line" }) { _, line ->
-                                LyricsLineChip(
-                                    text = line,
-                                    active = false,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RectangleShape,
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    EmptyStatePanel(
-                        title = if (lyricsStatus == LyricsLoadState.Unavailable) {
-                            "No lyrics found"
-                        } else {
-                            "No synced lyrics available"
-                        },
-                        body = if (lyricsStatus == LyricsLoadState.Unavailable) {
-                            "VerseFlow couldn't find a reliable lyrics match for this track from the current lyric sources."
-                        } else {
-                            "This local track can play from your device, but VerseFlow doesn't have timed lyric data for it yet."
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                        shape = RectangleShape,
-                    )
-                }
-            }
-            GlassPanel(
-                modifier = Modifier.fillMaxWidth(),
                 shape = RectangleShape,
+                surfaceAlpha = 0.90f,
+                surfaceVariantAlpha = 0.84f,
+                borderAlpha = 0.14f,
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    text = song.title,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                )
+                                Text(
+                                    text = uiState.artistsById[song.artistId]?.name.orEmpty(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            song.lyricsAttribution?.let { attribution ->
+                                Text(
+                                    text = attribution,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            LyricsDisplayMode.entries.forEach { mode ->
+                                VerseFilterChip(
+                                    label = mode.label,
+                                    selected = mode == uiState.playback.lyricsDisplayMode,
+                                    onClick = { onModeSelected(mode) },
+                                )
+                            }
+                            VerseFilterChip(
+                                label = "Search lyrics",
+                                selected = uiState.manualLyricsSearch.isVisible,
+                                onClick = onManualSearchRequested,
+                            )
+                            if (showingSyncedLyrics && !followLiveLyrics) {
+                                VerseFilterChip(
+                                    label = "Jump live",
+                                    selected = false,
+                                    onClick = {
+                                        followLiveLyrics = true
+                                        coroutineScope.launch {
+                                            autoScrolling = true
+                                            listState.animateScrollToItem((activeIndex - 2).coerceAtLeast(0))
+                                            autoScrolling = false
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                        if (uiState.playback.lyricsDisplayMode == LyricsDisplayMode.Synced && syncedLyrics.isEmpty() && plainLyrics.isNotEmpty()) {
+                            Text(
+                                text = "Only plain lyrics were found for this track, so timing is unavailable.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.30f),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    ) {
+                        if (lyricsStatus == LyricsLoadState.Loading && syncedLyrics.isEmpty() && plainLyrics.isEmpty()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(24.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
+                                Text(
+                                    text = "Fetching live lyrics for this song...",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(top = 18.dp),
+                                )
+                                Text(
+                                    text = "VerseFlow is matching this local file with online lyric timing.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
+                        } else if (showingSyncedLyrics) {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 48.dp),
+                                verticalArrangement = Arrangement.spacedBy(24.dp),
+                            ) {
+                                itemsIndexed(syncedLyrics, key = { _, item -> item.timestampMs }) { index, line ->
+                                    LyricsLineChip(
+                                        text = line.text,
+                                        active = index == activeIndex,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RectangleShape,
+                                        showContainer = false,
+                                    )
+                                }
+                            }
+                        } else if (plainLyrics.isNotEmpty()) {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 40.dp),
+                                verticalArrangement = Arrangement.spacedBy(24.dp),
+                            ) {
+                                itemsIndexed(plainLyrics, key = { index, line -> "$index-$line" }) { _, line ->
+                                    LyricsLineChip(
+                                        text = line,
+                                        active = false,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RectangleShape,
+                                        showContainer = false,
+                                    )
+                                }
+                            }
+                        } else {
+                            EmptyStatePanel(
+                                title = if (lyricsStatus == LyricsLoadState.Unavailable) {
+                                    "No lyrics found"
+                                } else {
+                                    "No synced lyrics available"
+                                },
+                                body = if (lyricsStatus == LyricsLoadState.Unavailable) {
+                                    "VerseFlow couldn't find a reliable lyrics match for this track from the current lyric sources."
+                                } else {
+                                    "This local track can play from your device, but VerseFlow doesn't have timed lyric data for it yet."
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                                shape = RectangleShape,
+                            )
+                        }
+                    }
+                }
+            }
+            HorizontalDivider(
+                thickness = 2.dp,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+            )
+            GlassPanel(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = 8.dp),
+                shape = RectangleShape,
+                surfaceAlpha = 0.94f,
+                surfaceVariantAlpha = 0.88f,
+                borderAlpha = 0.16f,
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(0.dp),
                 ) {
                     PlaybackProgress(
                         positionMs = uiState.playback.positionMs,
@@ -411,7 +425,9 @@ fun LyricsScreen(
                         onSeek = onSeek,
                     )
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -476,83 +492,77 @@ private fun CarLyricsLayout(
             .padding(horizontal = 24.dp, vertical = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(22.dp),
     ) {
-        GlassPanel(
+        Column(
             modifier = Modifier
                 .weight(0.62f)
-                .fillMaxHeight(),
-            shape = RectangleShape,
+                .fillMaxHeight()
+                .padding(horizontal = 26.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 26.dp, vertical = 24.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        GlowIconButton(
-                            icon = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
-                            onClick = onBack,
-                        )
-                        Text(
-                            text = "Lyrics",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Text(
-                        text = songTitle,
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = artistName,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.secondary,
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center,
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    GlowIconButton(
+                        icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        onClick = onBack,
+                    )
                     Text(
-                        text = lineToShow,
-                        style = MaterialTheme.typography.displaySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        text = "Lyrics",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        LyricsDisplayMode.entries.forEach { mode ->
-                            VerseFilterChip(
-                                label = mode.label,
-                                selected = mode == uiState.playback.lyricsDisplayMode,
-                                onClick = { onModeSelected(mode) },
-                            )
-                        }
+                Text(
+                    text = songTitle,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = artistName,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = lineToShow,
+                    style = MaterialTheme.typography.displaySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    LyricsDisplayMode.entries.forEach { mode ->
                         VerseFilterChip(
-                            label = "Search lyrics",
-                            selected = false,
-                            onClick = onManualSearchRequested,
+                            label = mode.label,
+                            selected = mode == uiState.playback.lyricsDisplayMode,
+                            onClick = { onModeSelected(mode) },
                         )
                     }
-                    PlaybackProgress(
-                        positionMs = uiState.playback.positionMs,
-                        durationMs = currentSong.durationMs,
-                        onSeek = onSeek,
+                    VerseFilterChip(
+                        label = "Search lyrics",
+                        selected = false,
+                        onClick = onManualSearchRequested,
                     )
                 }
+                PlaybackProgress(
+                    positionMs = uiState.playback.positionMs,
+                    durationMs = currentSong.durationMs,
+                    onSeek = onSeek,
+                )
             }
         }
         GlassPanel(
