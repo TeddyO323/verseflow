@@ -55,6 +55,7 @@ test*.mp4
 # macOS / system
 Thumbs.db
 
-# Keep tracked release builds in the root releases folder
+# Keep the root releases folder, but not the generated binaries inside it
 !/releases/
-!/releases/**
+!/releases/.gitkeep
+!/releases/README.md
