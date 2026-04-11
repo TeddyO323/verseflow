@@ -30,7 +30,6 @@ output-metadata.json
 *.msi
 *.deb
 *.rpm
-*.jar
 *.exe
 *.app
 
@@ -55,3 +54,7 @@ test*.mp4
 
 # macOS / system
 Thumbs.db
+
+# Keep tracked release builds in the root releases folder
+!/releases/
+!/releases/**
