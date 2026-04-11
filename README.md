@@ -1,22 +1,22 @@
 # VerseFlow
 
-VerseFlow is a premium Android music player concept built with Kotlin, Jetpack Compose, and Material 3.
+VerseFlow is a local-first music player project built with Kotlin, Jetpack Compose, and Material 3 across Android and desktop experiences.
 
 It is designed around one core experience: a cinematic local music player with a polished real-time lyrics screen.
 
-[Download Here](./app/build/outputs/apk/debug/app-debug.apk)
+[Downloads](./releases/)
 
-The app currently focuses on:
+The project currently focuses on:
 
-- beautiful Android UI and motion
+- polished Android phone, Android Auto, and macOS desktop UI
 - local on-device music playback
 - album-art-reactive visuals
 - synced and plain lyrics discovery
 - manual lyrics selection
 - media-session-backed background playback
-- reusable Compose architecture that can be extended later
+- reusable Compose architecture that can keep expanding later
 
-This project is frontend-first, but it is no longer just a static UI prototype. It now includes real local playback, media notifications, lyrics lookup, caching, and device-library browsing.
+This project is no longer just a static UI prototype. It now includes real local playback, media notifications, lyrics lookup, metadata enrichment, caching, and device-library browsing across multiple VerseFlow surfaces.
 
 ## Installation
 
@@ -56,6 +56,18 @@ APK output:
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Android Auto / car-installed Android testing
+
+VerseFlow also has a car-focused Android build flow for Android Auto experiments and direct car-screen testing.
+
+Build from terminal:
+
+```bash
+JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew --no-daemon :app:assembleDebug --console=plain
+```
+
+For local staging, release files are copied into the `releases/` folder. For publishing, use GitHub Releases instead of committing large binaries into Git history.
+
 ### Mac desktop setup
 
 Requirements:
@@ -81,11 +93,32 @@ Desktop compile check:
 JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew --no-daemon :desktopApp:compileKotlin --console=plain
 ```
 
+Build the macOS DMG:
+
+```bash
+JAVA_HOME='/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home' ./gradlew --no-daemon :desktopApp:packageDmg --console=plain
+```
+
+## Available Versions
+
+Currently available:
+
+- Android phone app
+- Android Auto / car-installed Android build
+- macOS desktop app
+
+Still being built:
+
+- Windows desktop app
+- iOS app
+
 ## Status
 
 Current state:
 
-- Android app is runnable and usable on a real device
+- Android phone app is runnable and usable on a real device
+- Android Auto / car-installed Android flow is available for in-car testing
+- macOS desktop app is implemented and packaged as a DMG
 - local songs can be loaded from device storage through `MediaStore`
 - real audio playback works for local files
 - playback continues in the background for local songs
@@ -119,6 +152,7 @@ This is still a debug-stage app, not a production release.
 - Album-focused playback
 - Playlist playback
 - Artist top-track playback
+- playback resumption support
 
 ### Lyrics
 
@@ -128,6 +162,28 @@ This is still a debug-stage app, not a production release.
 - Manual lyrics search and manual match selection
 - Cached lyrics for previously matched songs
 - `Jump Live` behavior for returning to the active lyric after manual scrolling
+
+### Metadata and discovery
+
+- Artist bio and profile-photo search
+- Album bio and info search
+- Manual search fallback for ambiguous artist and album matches
+- Song metadata search with local override storage
+- Favourite artists based on library track counts
+- Play history views and recap data
+
+### Desktop experience
+
+- Native macOS desktop app
+- Desktop play history recaps, streaks, and heatmap
+- Immersive and monochrome desktop themes
+- Desktop manual metadata editing and search workflows
+
+### Android Auto / car mode
+
+- Car-focused now playing and lyrics layouts
+- Android Auto testing support
+- Car library browsing and playback flow
 
 ### Device integration
 
@@ -140,10 +196,16 @@ This is still a debug-stage app, not a production release.
 ### Personalization
 
 - Multiple theme presets:
-  - `Nebula Dark`
-  - `Eclipse OLED`
-  - `Aurora Glow`
-  - `Cobalt Luxe`
+  - `Nebula`
+  - `Eclipse`
+  - `Crimson`
+  - `Solar`
+  - `Cobalt`
+  - `Arctic`
+  - `Rose`
+  - `Mint`
+  - `Amber`
+  - `Mono`
 - User display name in Settings
 - App-only metadata overrides for title, artist, album, and genre
 - Song hiding inside VerseFlow without deleting the real file
@@ -491,25 +553,39 @@ Possible next steps:
   - karaoke word timing
   - lyric source picker
 - real metadata rewriting to audio files
-- desktop version for macOS
+- Windows desktop app
+- iOS app
 
-## MacBook Version Plan
+## macOS Desktop App
 
-The cleanest path for a Mac version is Compose Multiplatform.
+VerseFlow already has a working macOS desktop app built with Compose for Desktop.
 
-Suggested roadmap:
+Current desktop capabilities include:
 
-1. Move shared models, theme, and UI state into shared modules
-2. Keep Android-specific media and library APIs behind interfaces
-3. Add a desktop playback implementation
-4. Add macOS local-library scanning and artwork extraction
-5. Reuse as much of the current Compose UI as possible
-6. Package as a native macOS desktop app
+- local library scanning
+- desktop playback and now playing
+- synced and plain lyrics
+- artist, album, and song metadata search
+- play history recaps and listening patterns
+- desktop-only theme system, including immersive artwork tinting
+- DMG packaging for local distribution
+
+## Android Auto
+
+VerseFlow also includes an Android Auto / car-oriented Android experience.
+
+Current Android Auto and car-focused work includes:
+
+- in-car now playing and lyrics layouts
+- car library browsing
+- album-art-reactive backdrop on now playing and lyrics
+- car testing previews in Android Studio
+- release APK staging through the `releases/` folder for publishing
 
 ## Notes
 
-- This repository currently represents a premium Android music-player prototype with real local playback and a strong lyrics-first experience.
-- The project has intentionally prioritized design polish and local lyrics UX before platform expansion.
+- This repository now represents a multi-surface VerseFlow project spanning Android phone, Android Auto experimentation, and macOS desktop.
+- The project has intentionally prioritized design polish, local playback, and lyrics-first UX before broader platform expansion.
 
 ## License
 
