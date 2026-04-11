@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -156,6 +157,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import org.jetbrains.skia.Image as SkiaImage
 import androidx.compose.ui.layout.ContentScale
@@ -680,6 +682,30 @@ private data class DesktopFetchedAlbumProfile(
     val trackTitles: List<String>,
 )
 
+private data class DesktopTrackLookupUiState(
+    val trackPath: String? = null,
+    val isLoading: Boolean = false,
+    val message: String? = null,
+    val isError: Boolean = false,
+)
+
+private data class DesktopTrackManualSearchUiState(
+    val trackPath: String? = null,
+    val query: String = "",
+    val candidates: List<DesktopArtistLookupCandidate> = emptyList(),
+    val isLoading: Boolean = false,
+    val message: String? = null,
+)
+
+private data class DesktopFetchedTrackProfile(
+    val title: String?,
+    val artist: String?,
+    val album: String?,
+    val releaseDate: String?,
+    val genre: String?,
+    val sourcePageTitle: String,
+)
+
 private data class DesktopAlbumStats(
     val playCount: Int,
     val listenedMs: Long,
@@ -704,19 +730,45 @@ private data class DesktopArtistLookupCandidate(
     val score: Int,
 )
 
-private fun displayGenreLabel(genre: String): String =
+private fun isMissingGenreLabel(genre: String?): Boolean =
+    genre.isNullOrBlank() ||
+        genre.equals("Unclassified", ignoreCase = true) ||
+        genre.equals("No genre", ignoreCase = true) ||
+        genre.equals("No genre tag", ignoreCase = true)
+
+private fun normalizeGenreLabel(genre: String?): String =
     genre
-        .trim()
-        .takeIf(String::isNotEmpty)
-        ?.takeUnless { it.equals("Unclassified", ignoreCase = true) }
-        ?: "No genre tag"
+        ?.trim()
+        ?.takeUnless(::isMissingGenreLabel)
+        ?: "No genre"
+
+private fun displayGenreLabel(genre: String): String = normalizeGenreLabel(genre)
 
 private fun displayGenreLabels(genres: List<String>): String =
     genres
         .map(::displayGenreLabel)
         .distinct()
         .joinToString(" • ")
-        .ifBlank { "No genre tag" }
+        .ifBlank { "No genre" }
+
+private fun extractReleaseYear(value: String?): Int? =
+    value
+        ?.let { Regex("""(19|20)\d{2}""").find(it)?.value }
+        ?.toIntOrNull()
+
+private fun extractReleaseDate(value: String?): Int? = extractReleaseYear(value)
+
+private fun desktopLastFmApiKey(settingsValue: String): String =
+    settingsValue.ifBlank {
+        System.getenv("VERSEFLOW_LAST_FM_API_KEY")
+            ?.trim()
+            .orEmpty()
+            .ifBlank {
+                System.getProperty("verseflow.lastfm.apiKey")
+                    ?.trim()
+                    .orEmpty()
+            }
+    }
 
 @Composable
 fun VerseFlowDesktopApp() {
@@ -774,6 +826,7 @@ fun VerseFlowDesktopApp() {
     var isRepeatEnabled by remember { mutableStateOf(storedSettings.isRepeatEnabled) }
     var autoRescanEnabled by remember { mutableStateOf(storedSettings.autoRescanEnabled) }
     var musixmatchApiKey by remember { mutableStateOf(storedSettings.musixmatchApiKey) }
+    var lastFmApiKey by remember { mutableStateOf(storedSettings.lastFmApiKey) }
     var lyricsStatuses by remember { mutableStateOf<Map<String, DesktopLyricsLoadState>>(emptyMap()) }
     var playHistoryEntries by remember { mutableStateOf(appStore.loadPlayHistory()) }
     var recentTrackIds by remember { mutableStateOf(playHistoryEntries.toRecentTrackIds()) }
@@ -788,6 +841,8 @@ fun VerseFlowDesktopApp() {
     var artistManualSearchUiState by remember { mutableStateOf(DesktopArtistManualSearchUiState()) }
     var albumLookupUiState by remember { mutableStateOf(DesktopAlbumLookupUiState()) }
     var albumManualSearchUiState by remember { mutableStateOf(DesktopAlbumManualSearchUiState()) }
+    var trackLookupUiState by remember { mutableStateOf(DesktopTrackLookupUiState()) }
+    var trackManualSearchUiState by remember { mutableStateOf(DesktopTrackManualSearchUiState()) }
     var pendingPlaybackSession by remember { mutableStateOf(appStore.loadPlaybackSession()) }
     var queueTrackPaths by remember { mutableStateOf<List<String>>(emptyList()) }
     var queueLabel by remember { mutableStateOf("All Songs") }
@@ -976,14 +1031,16 @@ fun VerseFlowDesktopApp() {
         val updatedTitle = override.title?.trim().orEmpty().ifBlank { track.title }
         val updatedArtist = override.artist?.trim().orEmpty().ifBlank { track.artist }
         val updatedAlbum = override.album?.trim().orEmpty().ifBlank { track.album }
-        val updatedGenre = override.genre?.trim().orEmpty().ifBlank { track.genre }
+        val updatedGenre = normalizeGenreLabel(override.genre?.trim().orEmpty().ifBlank { track.genre })
+        val updatedReleaseDate = override.releaseDate?.trim().orEmpty().ifBlank { track.releaseDate.orEmpty() }.ifBlank { null }
         return track.copy(
             title = updatedTitle,
             artist = updatedArtist,
             artistCredits = buildDesktopArtistCredits(updatedArtist, updatedTitle).ifEmpty { listOf(updatedArtist) },
             album = updatedAlbum,
+            releaseDate = updatedReleaseDate,
             genre = updatedGenre,
-            mood = updatedGenre.takeIf { it.isNotBlank() && !it.equals("Unclassified", ignoreCase = true) } ?: track.mood,
+            mood = updatedGenre.takeUnless(::isMissingGenreLabel) ?: "Local file",
         )
     }
 
@@ -1250,12 +1307,14 @@ fun VerseFlowDesktopApp() {
         artist: String,
         album: String,
         genre: String,
+        releaseDate: String,
     ) {
         val override = DesktopTrackMetadataOverride(
             title = title.trim().takeIf(String::isNotBlank),
             artist = artist.trim().takeIf(String::isNotBlank),
             album = album.trim().takeIf(String::isNotBlank),
-            genre = genre.trim().takeIf(String::isNotBlank),
+            genre = normalizeGenreLabel(genre).takeIf { !isMissingGenreLabel(it) },
+            releaseDate = releaseDate.trim().takeIf(String::isNotBlank),
         )
         trackOverrides = trackOverrides + (track.path to override)
         appStore.saveTrackOverrides(trackOverrides)
@@ -1265,6 +1324,49 @@ fun VerseFlowDesktopApp() {
             },
         )
         editingTrack = null
+        trackLookupUiState = DesktopTrackLookupUiState()
+        trackManualSearchUiState = DesktopTrackManualSearchUiState()
+    }
+
+    fun inferTrackGenre(track: DesktopTrack): String? {
+        val albumKey = desktopAlbumKey(track.albumArtist, track.album)
+        val albumGenre = albumProfileOverrides[albumKey]?.genre?.takeUnless(::isMissingGenreLabel)
+        if (albumGenre != null) return albumGenre
+
+        val albumTrackGenre = tracks
+            .filter { it.album == track.album && it.albumArtist == track.albumArtist }
+            .map(DesktopTrack::genre)
+            .map(::normalizeGenreLabel)
+            .firstOrNull { !isMissingGenreLabel(it) }
+        if (albumTrackGenre != null) return albumTrackGenre
+
+        val artistGenre = tracks
+            .filter { artistTrack -> track.artistCredits.any { it in artistTrack.artistCredits } }
+            .map(DesktopTrack::genre)
+            .map(::normalizeGenreLabel)
+            .filterNot(::isMissingGenreLabel)
+            .groupingBy { it }
+            .eachCount()
+            .maxByOrNull { it.value }
+            ?.key
+        return artistGenre
+    }
+
+    fun inferTrackReleaseDate(track: DesktopTrack): String? {
+        val albumKey = desktopAlbumKey(track.albumArtist, track.album)
+        val albumDate = albumProfileOverrides[albumKey]?.releaseDate?.takeIf(String::isNotBlank)
+        if (albumDate != null) return albumDate
+
+        return tracks
+            .filter { it.album == track.album && it.albumArtist == track.albumArtist }
+            .mapNotNull(DesktopTrack::releaseDate)
+            .firstOrNull()
+    }
+
+    suspend fun fetchLastFmFallbackGenre(track: DesktopTrack): String? {
+        val apiKey = desktopLastFmApiKey(lastFmApiKey)
+        if (apiKey.isBlank()) return null
+        return runCatching { fetchDesktopTrackGenreFromLastFm(track, apiKey) }.getOrNull()
     }
 
     fun applyManualLyrics(track: DesktopTrack, payload: DesktopLyricsPayload) {
@@ -1676,6 +1778,166 @@ fun VerseFlowDesktopApp() {
         }
     }
 
+    fun importTrackProfile(track: DesktopTrack) {
+        trackLookupUiState = DesktopTrackLookupUiState(
+            trackPath = track.path,
+            isLoading = true,
+            message = "Searching Wikipedia for ${track.title}...",
+            isError = false,
+        )
+        coroutineScope.launch {
+            runCatching {
+                fetchDesktopTrackProfileFromWikipedia(track)
+            }.onSuccess { profile ->
+                val lastFmGenre = if (profile.genre == null) fetchLastFmFallbackGenre(track) else null
+                val resolvedGenre = profile.genre ?: lastFmGenre ?: inferTrackGenre(track) ?: track.genre
+                val resolvedReleaseDate = profile.releaseDate ?: inferTrackReleaseDate(track) ?: track.releaseDate.orEmpty()
+                saveTrackMetadataOverride(
+                    track = track,
+                    title = profile.title ?: track.title,
+                    artist = profile.artist ?: track.artist,
+                    album = profile.album ?: track.album,
+                    genre = resolvedGenre,
+                    releaseDate = resolvedReleaseDate,
+                )
+                editingTrack = tracks.firstOrNull { it.path == track.path }?.let(::applyTrackCustomization) ?: track
+                trackLookupUiState = DesktopTrackLookupUiState(
+                    trackPath = track.path,
+                    isLoading = false,
+                    message = buildString {
+                        append("Imported song info from ")
+                        append(profile.sourcePageTitle)
+                        append('.')
+                    },
+                    isError = false,
+                )
+            }.onFailure { error ->
+                val lastFmGenre = fetchLastFmFallbackGenre(track)
+                val fallbackGenre = inferTrackGenre(track)
+                val fallbackReleaseDate = inferTrackReleaseDate(track)
+                if (lastFmGenre != null || fallbackGenre != null || fallbackReleaseDate != null) {
+                    saveTrackMetadataOverride(
+                        track = track,
+                        title = track.title,
+                        artist = track.artist,
+                        album = track.album,
+                        genre = lastFmGenre ?: fallbackGenre ?: track.genre,
+                        releaseDate = fallbackReleaseDate ?: track.releaseDate.orEmpty(),
+                    )
+                    editingTrack = tracks.firstOrNull { it.path == track.path }?.let(::applyTrackCustomization) ?: track
+                    trackLookupUiState = DesktopTrackLookupUiState(
+                        trackPath = track.path,
+                        isLoading = false,
+                        message = buildString {
+                            append("No reliable Wikipedia song page was found")
+                            if (lastFmGenre != null || fallbackGenre != null || fallbackReleaseDate != null) {
+                                append(", so VerseFlow applied fallback metadata")
+                                if ((lastFmGenre != null || fallbackGenre != null) && fallbackReleaseDate != null) append(" for genre and release year")
+                                else if (lastFmGenre != null || fallbackGenre != null) append(" for genre")
+                                else append(" for release year")
+                            }
+                            append('.')
+                        },
+                        isError = false,
+                    )
+                } else {
+                    trackLookupUiState = DesktopTrackLookupUiState(
+                        trackPath = track.path,
+                        isLoading = false,
+                        message = error.message ?: "VerseFlow couldn't import that track info.",
+                        isError = true,
+                    )
+                }
+            }
+        }
+    }
+
+    fun openManualTrackSearch(track: DesktopTrack) {
+        trackManualSearchUiState = DesktopTrackManualSearchUiState(
+            trackPath = track.path,
+            query = listOf(track.title, track.artist, "song").joinToString(" ").trim(),
+            candidates = emptyList(),
+            isLoading = false,
+            message = null,
+        )
+    }
+
+    fun runManualTrackSearch(track: DesktopTrack, query: String) {
+        val normalizedQuery = query.trim()
+        trackManualSearchUiState = DesktopTrackManualSearchUiState(
+            trackPath = track.path,
+            query = normalizedQuery,
+            candidates = emptyList(),
+            isLoading = true,
+            message = "Searching Wikipedia...",
+        )
+        coroutineScope.launch {
+            runCatching {
+                val client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build()
+                searchWikipediaPages(client, normalizedQuery, limit = 8)
+            }.onSuccess { candidates ->
+                trackManualSearchUiState = DesktopTrackManualSearchUiState(
+                    trackPath = track.path,
+                    query = normalizedQuery,
+                    candidates = candidates,
+                    isLoading = false,
+                    message = if (candidates.isEmpty()) "No Wikipedia results found for that search." else null,
+                )
+            }.onFailure { error ->
+                trackManualSearchUiState = DesktopTrackManualSearchUiState(
+                    trackPath = track.path,
+                    query = normalizedQuery,
+                    candidates = emptyList(),
+                    isLoading = false,
+                    message = error.message ?: "VerseFlow couldn't run that search.",
+                )
+            }
+        }
+    }
+
+    fun importTrackProfileFromManualCandidate(track: DesktopTrack, pageTitle: String) {
+        trackLookupUiState = DesktopTrackLookupUiState(
+            trackPath = track.path,
+            isLoading = true,
+            message = "Importing info from $pageTitle...",
+            isError = false,
+        )
+        coroutineScope.launch {
+            runCatching {
+                fetchDesktopTrackProfileFromWikipediaPage(track, pageTitle)
+            }.onSuccess { profile ->
+                val lastFmGenre = if (profile.genre == null) fetchLastFmFallbackGenre(track) else null
+                val resolvedGenre = profile.genre ?: lastFmGenre ?: inferTrackGenre(track) ?: track.genre
+                val resolvedReleaseDate = profile.releaseDate ?: inferTrackReleaseDate(track) ?: track.releaseDate.orEmpty()
+                saveTrackMetadataOverride(
+                    track = track,
+                    title = profile.title ?: track.title,
+                    artist = profile.artist ?: track.artist,
+                    album = profile.album ?: track.album,
+                    genre = resolvedGenre,
+                    releaseDate = resolvedReleaseDate,
+                )
+                editingTrack = tracks.firstOrNull { it.path == track.path }?.let(::applyTrackCustomization) ?: track
+                trackLookupUiState = DesktopTrackLookupUiState(
+                    trackPath = track.path,
+                    isLoading = false,
+                    message = "Imported song info from $pageTitle.",
+                    isError = false,
+                )
+                trackManualSearchUiState = DesktopTrackManualSearchUiState()
+            }.onFailure { error ->
+                trackLookupUiState = DesktopTrackLookupUiState(
+                    trackPath = track.path,
+                    isLoading = false,
+                    message = error.message ?: "VerseFlow couldn't import that Wikipedia page.",
+                    isError = true,
+                )
+            }
+        }
+    }
+
     fun persistUserPlaylists(nextPlaylists: List<DesktopUserPlaylist>) {
         userPlaylists = nextPlaylists
         playlistStore.savePlaylists(nextPlaylists)
@@ -1843,7 +2105,7 @@ fun VerseFlowDesktopApp() {
             ?.let(::scanFolders)
     }
 
-    LaunchedEffect(displayName, selectedTheme, isShuffleEnabled, isRepeatEnabled, autoRescanEnabled, musixmatchApiKey) {
+    LaunchedEffect(displayName, selectedTheme, isShuffleEnabled, isRepeatEnabled, autoRescanEnabled, musixmatchApiKey, lastFmApiKey) {
         appStore.saveSettings(
             DesktopSettingsSnapshot(
                 displayName = displayName,
@@ -1852,6 +2114,7 @@ fun VerseFlowDesktopApp() {
                 isRepeatEnabled = isRepeatEnabled,
                 autoRescanEnabled = autoRescanEnabled,
                 musixmatchApiKey = musixmatchApiKey,
+                lastFmApiKey = lastFmApiKey,
             ),
         )
     }
@@ -2440,6 +2703,8 @@ fun VerseFlowDesktopApp() {
                                     onAutoRescanChange = { autoRescanEnabled = it },
                                     musixmatchApiKey = musixmatchApiKey,
                                     onMusixmatchApiKeyChange = { musixmatchApiKey = it },
+                                    lastFmApiKey = lastFmApiKey,
+                                    onLastFmApiKeyChange = { lastFmApiKey = it },
                                     libraryPaths = libraryState.sourcePaths,
                                     trackCount = tracks.size,
                                     isScanning = libraryState.isScanning,
@@ -2682,10 +2947,24 @@ fun VerseFlowDesktopApp() {
             editingTrack?.let { track ->
                 DesktopTrackEditDialog(
                     track = track,
-                    onDismiss = { editingTrack = null },
-                    onSave = { title, artist, album, genre ->
-                        saveTrackMetadataOverride(track, title, artist, album, genre)
+                    lookupState = trackLookupUiState.takeIf { it.trackPath == track.path } ?: DesktopTrackLookupUiState(),
+                    manualSearchState = trackManualSearchUiState.takeIf { it.trackPath == track.path } ?: DesktopTrackManualSearchUiState(),
+                    onDismiss = {
+                        editingTrack = null
+                        trackLookupUiState = DesktopTrackLookupUiState()
+                        trackManualSearchUiState = DesktopTrackManualSearchUiState()
                     },
+                    onSave = { title, artist, album, genre, releaseDate ->
+                        saveTrackMetadataOverride(track, title, artist, album, genre, releaseDate)
+                    },
+                    onAutoSearch = { importTrackProfile(track) },
+                    onOpenManualSearch = { openManualTrackSearch(track) },
+                    onManualSearchQueryChange = { query ->
+                        trackManualSearchUiState = trackManualSearchUiState.copy(trackPath = track.path, query = query)
+                    },
+                    onRunManualSearch = { query -> runManualTrackSearch(track, query) },
+                    onImportFromCandidate = { pageTitle -> importTrackProfileFromManualCandidate(track, pageTitle) },
+                    onDismissManualSearch = { trackManualSearchUiState = DesktopTrackManualSearchUiState() },
                 )
             }
             deletingTrack?.let { track ->
@@ -3470,7 +3749,7 @@ private fun DesktopLibrary(
     trackMenu: DesktopTrackMenuModel,
 ) {
     val albumTrackMap = remember(tracks) { tracks.groupBy { desktopAlbumKey(it.albumArtist, it.album) } }
-    val genreTrackMap = remember(tracks) { tracks.groupBy { it.genre.ifBlank { "Unclassified" } } }
+    val genreTrackMap = remember(tracks) { tracks.groupBy { normalizeGenreLabel(it.genre) } }
     val favoritesPlaylist = remember(playlists) {
         playlists.firstOrNull { it.id == FavoritesPlaylistId }
     }
@@ -5287,7 +5566,7 @@ private fun DesktopAlbumDetail(
         listOfNotNull(
             "Album artist" to album.artist,
             "Release date" to displayReleaseDate,
-            "Genre" to displayGenre.takeIf { it.isNotBlank() && !it.equals("Unclassified", ignoreCase = true) },
+            "Genre" to displayGenre.takeUnless(::isMissingGenreLabel),
             "Tracks" to trackCoverageLabel,
             "Runtime" to formatDuration(stats.totalDurationMs),
             albumProfileOverride?.sourcePageTitle?.let { "Source" to it },
@@ -5325,7 +5604,7 @@ private fun DesktopAlbumDetail(
                     palette = album.palette,
                     artworkBytes = album.artworkBytes,
                     label = album.title.take(1),
-                    modifier = Modifier.fillMaxWidth().height(300.dp),
+                    modifier = Modifier.fillMaxWidth().aspectRatio(1f),
                     contentScale = ContentScale.Fit,
                 )
                 Text(album.title, style = MaterialTheme.typography.headlineLarge, color = FrostWhite)
@@ -5335,7 +5614,7 @@ private fun DesktopAlbumDetail(
                     }
                 }
                 Text(
-                    text = "${album.trackCount} songs • ${formatDuration(album.durationMs)} • ${album.genre}",
+                    text = "${album.trackCount} songs • ${formatDuration(album.durationMs)} • ${displayGenreLabel(album.genre)}",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MutedLavender,
                 )
@@ -6335,19 +6614,46 @@ private fun DesktopLyrics(
 @Composable
 private fun DesktopTrackEditDialog(
     track: DesktopTrack,
+    lookupState: DesktopTrackLookupUiState,
+    manualSearchState: DesktopTrackManualSearchUiState,
     onDismiss: () -> Unit,
-    onSave: (title: String, artist: String, album: String, genre: String) -> Unit,
+    onSave: (title: String, artist: String, album: String, genre: String, releaseDate: String) -> Unit,
+    onAutoSearch: () -> Unit,
+    onOpenManualSearch: () -> Unit,
+    onManualSearchQueryChange: (String) -> Unit,
+    onRunManualSearch: (String) -> Unit,
+    onImportFromCandidate: (String) -> Unit,
+    onDismissManualSearch: () -> Unit,
 ) {
     var title by remember(track.path) { mutableStateOf(track.title) }
     var artist by remember(track.path) { mutableStateOf(track.artist) }
     var album by remember(track.path) { mutableStateOf(track.album) }
-    var genre by remember(track.path) { mutableStateOf(track.genre) }
+    var genre by remember(track.path) { mutableStateOf(displayGenreLabel(track.genre)) }
+    var releaseDate by remember(track.path) { mutableStateOf(track.releaseDate.orEmpty()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit Music Info", fontFamily = FontFamily.SansSerif) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            val dialogScroll = rememberScrollState()
+            Column(
+                modifier = Modifier.heightIn(max = 620.dp).verticalScroll(dialogScroll),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    PrimaryChip(
+                        label = if (lookupState.isLoading) "Searching..." else "Search song info",
+                        onClick = onAutoSearch,
+                    )
+                    SecondaryChip(label = "Manual search", onClick = onOpenManualSearch)
+                }
+                lookupState.message?.let { message ->
+                    Text(
+                        text = message,
+                        color = if (lookupState.isError) Color(0xFFFFA5A5) else MutedLavender,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -6372,6 +6678,58 @@ private fun DesktopTrackEditDialog(
                     singleLine = true,
                     label = { Text("Genre") },
                 )
+                OutlinedTextField(
+                    value = releaseDate,
+                    onValueChange = { releaseDate = it },
+                    singleLine = true,
+                    label = { Text("Release year") },
+                )
+                if (manualSearchState.trackPath == track.path) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f),
+                        shape = RectangleShape,
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                OutlinedTextField(
+                                    value = manualSearchState.query,
+                                    onValueChange = onManualSearchQueryChange,
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    label = { Text("Search Wikipedia") },
+                                )
+                                SecondaryChip(
+                                    label = if (manualSearchState.isLoading) "Searching..." else "Search",
+                                    onClick = { onRunManualSearch(manualSearchState.query) },
+                                )
+                            }
+                            manualSearchState.message?.let { message ->
+                                Text(message, color = MutedLavender, style = MaterialTheme.typography.bodySmall)
+                            }
+                            manualSearchState.candidates.forEach { candidate ->
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.48f),
+                                    shape = RectangleShape,
+                                    modifier = Modifier.fillMaxWidth().clickable { onImportFromCandidate(candidate.pageTitle) },
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        Text(candidate.pageTitle, color = FrostWhite, style = MaterialTheme.typography.titleSmall)
+                                        Text(candidate.snippet.ifBlank { "Wikipedia result" }, color = MutedLavender, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            }
+                            TextButton(onClick = onDismissManualSearch) {
+                                Text("Close manual search", fontFamily = FontFamily.SansSerif)
+                            }
+                        }
+                    }
+                }
                 Text(
                     "These edits are VerseFlow-only overrides for the Mac app. The original audio file tags stay untouched.",
                     fontFamily = FontFamily.SansSerif,
@@ -6383,7 +6741,7 @@ private fun DesktopTrackEditDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    onSave(title, artist, album, genre)
+                    onSave(title, artist, album, genre, releaseDate)
                 },
             ) {
                 Text("Save", fontFamily = FontFamily.SansSerif)
@@ -6662,6 +7020,8 @@ private fun DesktopSettings(
     onAutoRescanChange: (Boolean) -> Unit,
     musixmatchApiKey: String,
     onMusixmatchApiKeyChange: (String) -> Unit,
+    lastFmApiKey: String,
+    onLastFmApiKeyChange: (String) -> Unit,
     libraryPaths: List<String>,
     trackCount: Int,
     isScanning: Boolean,
@@ -6758,6 +7118,19 @@ private fun DesktopSettings(
                     )
                     Text(
                         text = "VerseFlow uses LRCLIB and lyrics.ovh by default. Add your Musixmatch key here to enable it as a third lyrics source on Mac.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MutedLavender,
+                    )
+                    SectionLabel("Song metadata fallback")
+                    OutlinedTextField(
+                        value = lastFmApiKey,
+                        onValueChange = onLastFmApiKeyChange,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Last.fm API key (optional)") },
+                    )
+                    Text(
+                        text = "VerseFlow can use Last.fm as a fallback source for song genres when Wikipedia does not have a usable page.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MutedLavender,
                     )
@@ -8665,7 +9038,7 @@ private fun buildDesktopSmartPlaylists(
         )
         .take(12)
     val topGenreTracks = tracks
-        .groupBy { it.genre.ifBlank { "Unclassified" } }
+        .groupBy { normalizeGenreLabel(it.genre) }
         .maxByOrNull { it.value.size }
         ?.value
         .orEmpty()
@@ -8676,6 +9049,12 @@ private fun buildDesktopSmartPlaylists(
         }
         ?.value
         .orEmpty()
+    val throwbackTracks = tracks
+        .filter { track -> (extractReleaseYear(track.releaseDate) ?: Int.MAX_VALUE) < 2010 }
+        .sortedWith(
+            compareBy<DesktopTrack> { extractReleaseYear(it.releaseDate) ?: Int.MAX_VALUE }
+                .thenBy { it.title.lowercase() },
+        )
 
     val candidates = buildList {
         if (recentTracks.isNotEmpty()) {
@@ -8731,6 +9110,20 @@ private fun buildDesktopSmartPlaylists(
                     tracks = leadArtistTracks.take(12),
                     palette = leadArtistTracks.first().palette,
                     artworkBytes = leadArtistTracks.firstNotNullOfOrNull(DesktopTrack::artworkBytes),
+                ),
+            )
+        }
+        if (throwbackTracks.isNotEmpty()) {
+            add(
+                DesktopPlaylistSummary(
+                    id = "smart_throwbacks",
+                    title = "Throwbacks",
+                    subtitle = "Built from release years before 2010",
+                    description = "A smart playlist that pulls in every song in your library with a release year before 2010.",
+                    supporting = "${throwbackTracks.size} songs • ${formatDuration(throwbackTracks.sumOf(DesktopTrack::durationMs))}",
+                    tracks = throwbackTracks,
+                    palette = throwbackTracks.first().palette,
+                    artworkBytes = throwbackTracks.firstNotNullOfOrNull(DesktopTrack::artworkBytes),
                 ),
             )
         }
@@ -8791,7 +9184,7 @@ private const val FavoritesPlaylistId = "system_favourites"
 
 private fun summarizeDesktopGenres(tracks: List<DesktopTrack>): List<DesktopGenreSummary> =
     tracks
-        .groupBy { it.genre.ifBlank { "Unclassified" } }
+        .groupBy { normalizeGenreLabel(it.genre) }
         .map { (genre, groupedTracks) ->
             DesktopGenreSummary(
                 title = genre,
@@ -8935,6 +9328,62 @@ private suspend fun fetchDesktopArtistProfileFromWikipedia(
         )
     }
 
+private suspend fun fetchDesktopTrackProfileFromWikipedia(
+    track: DesktopTrack,
+): DesktopFetchedTrackProfile =
+    withContext(Dispatchers.IO) {
+        val client = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build()
+
+        val queries = buildList {
+            add("${track.title} ${track.artist} song")
+            add("${track.title} ${track.artist} ${track.album}")
+            track.releaseDate?.takeIf(String::isNotBlank)?.let { add("${track.title} ${track.artist} $it song") }
+        }.distinct()
+
+        val candidate = queries
+            .flatMap { query -> searchWikipediaPages(client, query, limit = 8) }
+            .filter { isLikelyTrackCandidate(it, track) }
+            .maxWithOrNull(
+                compareByDescending<DesktopArtistLookupCandidate> { scoreWikipediaTrackCandidate(it.pageTitle, it.snippet, track) }
+                    .thenBy { it.pageTitle.lowercase() },
+            )
+            ?: error("VerseFlow couldn't find a reliable Wikipedia page for ${track.title}.")
+
+        fetchDesktopTrackProfileFromWikipediaPage(track, candidate.pageTitle)
+    }
+
+private suspend fun fetchDesktopTrackProfileFromWikipediaPage(
+    track: DesktopTrack,
+    pageTitle: String,
+): DesktopFetchedTrackProfile =
+    withContext(Dispatchers.IO) {
+        val client = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build()
+        val payload = fetchWikipediaSummaryPayload(client, pageTitle)
+        val extract = payload.optString("extract").trim()
+        val sourceContent = fetchWikipediaPageSource(client, pageTitle)
+        val releaseDate = extractReleaseDate(extract)?.toString()
+            ?: parseWikipediaTrackReleaseYear(sourceContent)
+            ?: track.releaseDate
+        val genre = parseWikipediaGenre(sourceContent)
+            ?: parseWikipediaGenre(extract)
+            ?: track.genre.takeUnless(::isMissingGenreLabel)
+        if (extract.isBlank() && genre == null && releaseDate == null) {
+            error("Wikipedia found a page, but it didn't return usable song info.")
+        }
+        DesktopFetchedTrackProfile(
+            title = track.title,
+            artist = track.artist,
+            album = track.album,
+            releaseDate = releaseDate,
+            genre = genre,
+            sourcePageTitle = pageTitle,
+        )
+    }
+
 private suspend fun fetchDesktopAlbumProfileFromWikipedia(
     album: DesktopAlbumSummary,
     albumTracks: List<DesktopTrack>,
@@ -8967,6 +9416,40 @@ private suspend fun fetchDesktopAlbumProfileFromWikipedia(
         )
     }
 
+private fun isLikelyTrackCandidate(
+    candidate: DesktopArtistLookupCandidate,
+    track: DesktopTrack,
+): Boolean {
+    val combined = "${candidate.pageTitle} ${candidate.snippet}".lowercase()
+    val title = track.title.lowercase()
+    val artist = track.artist.lowercase()
+    return combined.contains(title) && (combined.contains(artist) || combined.contains("song"))
+}
+
+private fun scoreWikipediaTrackCandidate(
+    pageTitle: String,
+    snippet: String,
+    track: DesktopTrack,
+): Int {
+    val normalizedTitle = pageTitle.lowercase()
+    val normalizedSnippet = snippet.lowercase()
+    val songTitle = track.title.lowercase()
+    val artistName = track.artist.lowercase()
+    val albumName = track.album.lowercase()
+    var score = 0
+    if (normalizedTitle.contains(songTitle)) score += 45
+    if (normalizedSnippet.contains(songTitle)) score += 24
+    if (normalizedTitle.contains(artistName)) score += 22
+    if (normalizedSnippet.contains(artistName)) score += 18
+    if (normalizedSnippet.contains("song")) score += 26
+    if (normalizedSnippet.contains("single")) score += 16
+    if (normalizedSnippet.contains(albumName)) score += 10
+    if (normalizedTitle.contains("album")) score -= 50
+    if (normalizedTitle.startsWith("list of")) score -= 90
+    if (normalizedTitle.contains("discography")) score -= 90
+    return score
+}
+
 private suspend fun fetchDesktopAlbumProfileFromWikipediaPage(
     album: DesktopAlbumSummary,
     albumTracks: List<DesktopTrack>,
@@ -8991,7 +9474,7 @@ private suspend fun fetchDesktopAlbumProfileFromWikipediaPage(
         DesktopFetchedAlbumProfile(
             bio = bio,
             releaseDate = releaseDate,
-            genre = album.genre.takeIf { it.isNotBlank() && !it.equals("Unclassified", ignoreCase = true) },
+            genre = album.genre.takeUnless(::isMissingGenreLabel),
             sourcePageTitle = pageTitle,
             totalTrackCount = trackTitles.size.takeIf { it > 0 },
             trackTitles = trackTitles,
@@ -9301,6 +9784,228 @@ private fun fetchWikipediaSummaryPayload(
             )
         }
     }
+}
+
+private fun fetchWikipediaPageSource(
+    client: HttpClient,
+    pageTitle: String,
+): String? {
+    val encodedTitle = URLEncoder.encode(pageTitle, Charsets.UTF_8)
+    val request = HttpRequest.newBuilder()
+        .uri(
+            URI(
+                "https://en.wikipedia.org/w/api.php?action=query&prop=revisions&titles=$encodedTitle&rvslots=main&rvprop=content&formatversion=2&format=json&redirects=1",
+            ),
+        )
+        .timeout(Duration.ofSeconds(12))
+        .header("User-Agent", "VerseFlowDesktop/1.0")
+        .GET()
+        .build()
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+    if (response.statusCode() !in 200..299) return null
+    val pages = JSONObject(response.body())
+        .optJSONObject("query")
+        ?.optJSONArray("pages")
+        ?: return null
+    return (0 until pages.length())
+        .asSequence()
+        .mapNotNull { index -> pages.optJSONObject(index) }
+        .mapNotNull { page ->
+            page.optJSONObject("revisions")
+                ?.optJSONObject("main")
+                ?.optString("content")
+                ?.takeIf(String::isNotBlank)
+                ?: page.optJSONArray("revisions")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("slots")
+                    ?.optJSONObject("main")
+                    ?.optString("content")
+                    ?.takeIf(String::isNotBlank)
+        }
+        .firstOrNull()
+}
+
+private fun parseWikipediaGenre(source: String?): String? {
+    val raw = source.orEmpty()
+    val inlineGenre = Regex("""(?im)^\|\s*genre\s*=\s*(.+)$""")
+        .find(raw)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.trim()
+    val proseGenre = Regex("""(?is)\bgenres?\b[^.:\n]{0,20}[:=]\s*([^.\n]{2,180})""")
+        .find(raw)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.trim()
+    return sequenceOf(inlineGenre, proseGenre)
+        .filterNotNull()
+        .flatMap { candidate -> extractGenreCandidates(candidate).asSequence() }
+        .map(::normalizeGenreCandidate)
+        .filterNotNull()
+        .firstOrNull()
+}
+
+private fun extractGenreCandidates(raw: String): List<String> {
+    val normalized = raw
+        .replace(Regex("""(?is)<ref[^>]*>.*?</ref>"""), " ")
+        .replace(Regex("""(?i)<br\s*/?>"""), "|")
+        .replace(Regex("""(?i)\{\{(?:hlist|plainlist|flatlist)\s*\|"""), "")
+        .replace(Regex("""(?i)\{\{ubl\s*\|"""), "")
+        .replace(Regex("""(?i)\{\{unbulleted list\s*\|"""), "")
+        .replace(Regex("""\{\{small\|"""), "")
+        .replace(Regex("""\{\{nowrap\|"""), "")
+        .replace(Regex("""\{\{plainlist\}\}|\{\{flatlist\}\}|\{\{hlist\}\}"""), " ")
+        .replace("[[", "")
+        .replace("]]", "")
+        .replace("{{", "")
+        .replace("}}", "")
+        .replace("&nbsp;", " ")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+
+    return normalized
+        .split('|', ',', ';', '\n', '*', '•')
+        .map { part -> part.substringAfterLast("=").trim() }
+        .map { part -> part.substringAfterLast("/").trim().ifBlank { part.trim() } }
+        .filter(String::isNotBlank)
+}
+
+private fun normalizeGenreCandidate(raw: String): String? {
+    val cleaned = raw
+        .replace(Regex("""\([^)]*\)"""), " ")
+        .replace(Regex("""(?i)\b(?:genre|music|stylistically|influences?)\b"""), " ")
+        .replace(Regex("""<[^>]+>"""), " ")
+        .replace(Regex("""[^A-Za-z0-9/&,\- ]"""), " ")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+        .substringAfterLast("|")
+        .trim()
+
+    if (cleaned.isBlank()) return null
+    val firstListValue = cleaned
+        .split(',', '/', ';')
+        .map(String::trim)
+        .firstOrNull { it.isNotBlank() }
+        ?: return null
+
+    return firstListValue
+        .takeUnless(::isMissingGenreLabel)
+        ?.takeUnless {
+            it.length < 3 ||
+                it.equals("citation needed", ignoreCase = true) ||
+                it.equals("see below", ignoreCase = true)
+        }
+}
+
+private fun parseWikipediaTrackReleaseYear(source: String?): String? =
+    extractReleaseYear(source)?.toString()
+
+private fun normalizeLastFmTagToGenre(tag: String): String? {
+    val normalized = tag.trim().lowercase()
+    if (normalized.isBlank()) return null
+    return when {
+        normalized in setOf("hip hop", "hip-hop", "uk hip hop", "uk hip-hop", "rap", "grime", "drill", "trap") -> "Hip-Hop"
+        normalized in setOf("rnb", "r&b", "rhythm and blues", "soul", "neo soul", "neosoul") -> "R&B"
+        normalized in setOf("afrobeats", "afrobeat", "afropop", "afroswing") -> "Afrobeats"
+        normalized in setOf("dancehall", "reggae") -> "Reggae"
+        normalized in setOf("pop", "synthpop", "electropop", "dance pop") -> "Pop"
+        normalized in setOf("rock", "alternative rock", "indie rock", "hard rock") -> "Rock"
+        normalized in setOf("house", "deep house", "edm", "electronic", "dance", "club") -> "Electronic"
+        normalized in setOf("jazz") -> "Jazz"
+        normalized in setOf("classical") -> "Classical"
+        normalized in setOf("gospel") -> "Gospel"
+        normalized in setOf("folk", "indie folk") -> "Folk"
+        normalized in setOf("country") -> "Country"
+        else -> tag.trim()
+            .split(' ', '-', '/')
+            .joinToString(" ") { part -> part.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
+            .takeUnless(::isMissingGenreLabel)
+    }
+}
+
+private fun fetchDesktopTrackGenreFromLastFm(
+    track: DesktopTrack,
+    apiKey: String,
+): String? {
+    val client = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .build()
+
+    fun tagsFor(method: String, params: Map<String, String>): List<String> {
+        val query = buildString {
+            append("method=")
+            append(URLEncoder.encode(method, Charsets.UTF_8))
+            params.forEach { (key, value) ->
+                append('&')
+                append(URLEncoder.encode(key, Charsets.UTF_8))
+                append('=')
+                append(URLEncoder.encode(value, Charsets.UTF_8))
+            }
+            append("&api_key=")
+            append(URLEncoder.encode(apiKey, Charsets.UTF_8))
+            append("&format=json")
+        }
+        val request = HttpRequest.newBuilder()
+            .uri(URI("https://ws.audioscrobbler.com/2.0/?$query"))
+            .timeout(Duration.ofSeconds(12))
+            .header("User-Agent", "VerseFlowDesktop/1.0")
+            .GET()
+            .build()
+        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() !in 200..299) return emptyList()
+        val payload = JSONObject(response.body())
+        val container = payload.optJSONObject("toptags") ?: return emptyList()
+        val rawTags = container.opt("tag")
+        val tagsArray = when (rawTags) {
+            is JSONArray -> rawTags
+            is JSONObject -> JSONArray().put(rawTags)
+            else -> null
+        } ?: return emptyList()
+        return (0 until tagsArray.length())
+            .mapNotNull { index -> tagsArray.optJSONObject(index) }
+            .sortedByDescending { it.optInt("count", 0) }
+            .mapNotNull { tagObject -> tagObject.optString("name").takeIf(String::isNotBlank) }
+    }
+
+    val candidateTags = buildList {
+        addAll(tagsFor("track.getTopTags", mapOf("artist" to track.artist, "track" to track.title)))
+        if (isEmpty()) addAll(tagsFor("album.getTopTags", mapOf("artist" to track.albumArtist, "album" to track.album)))
+        if (isEmpty()) addAll(tagsFor("artist.getTopTags", mapOf("artist" to (track.artistCredits.firstOrNull() ?: track.artist))))
+    }
+
+    return candidateTags
+        .mapNotNull(::normalizeLastFmTagToGenre)
+        .firstOrNull()
+}
+
+private fun searchWikipediaPages(
+    client: HttpClient,
+    query: String,
+    limit: Int = 5,
+): List<DesktopArtistLookupCandidate> {
+    val searchUri = URI(
+        "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=$limit&srsearch=" +
+            URLEncoder.encode(query, Charsets.UTF_8),
+    )
+    val searchRequest = HttpRequest.newBuilder(searchUri)
+        .timeout(Duration.ofSeconds(12))
+        .header("User-Agent", "VerseFlowDesktop/1.0")
+        .GET()
+        .build()
+    val searchResponse = client.send(searchRequest, HttpResponse.BodyHandlers.ofString())
+    if (searchResponse.statusCode() !in 200..299) {
+        error("Wikipedia search failed with HTTP ${searchResponse.statusCode()}.")
+    }
+
+    val searchPayload = JSONObject(searchResponse.body())
+    val results = searchPayload.optJSONObject("query")?.optJSONArray("search") ?: return emptyList()
+    return (0 until results.length())
+        .mapNotNull { index ->
+            val item = results.optJSONObject(index) ?: return@mapNotNull null
+            val pageTitle = item.optString("title").trim().takeIf(String::isNotEmpty) ?: return@mapNotNull null
+            val snippet = item.optString("snippet").replace(Regex("<[^>]+>"), " ").trim()
+            DesktopArtistLookupCandidate(pageTitle = pageTitle, snippet = snippet, score = 0)
+        }
 }
 
 private suspend fun saveDesktopArtistReferenceImage(

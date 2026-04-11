@@ -12,3 +12,46 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Kotlin / Gradle
+.kotlin/
+build/
+**/build/
+
+# Android artifacts
+*.apk
+*.aab
+*.ap_
+output-metadata.json
+
+# Desktop packaging artifacts
+*.dmg
+*.pkg
+*.msi
+*.deb
+*.rpm
+*.jar
+*.exe
+*.app
+
+# IDE / editor
+.idea/
+.vscode/
+
+# Logs / temp
+*.log
+*.tmp
+*.temp
+
+# Local test media / scratch files
+test*.jpg
+test*.jpeg
+test*.png
+test*.mp4
+*_screen.jpg
+*_screen.jpeg
+*_screen.png
+*.mov
+
+# macOS / system
+Thumbs.db

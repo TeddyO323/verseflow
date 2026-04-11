@@ -18,7 +18,6 @@ import com.example.verseflow.model.RepeatMode
 import com.example.verseflow.model.Song
 import com.example.verseflow.model.VerseFlowUiState
 import com.example.verseflow.ui.car.ProvideCarTestArtwork
-import com.example.verseflow.ui.screens.artist.ArtistDetailScreen
 import com.example.verseflow.ui.screens.home.HomeScreen
 import com.example.verseflow.ui.screens.library.LibraryScreen
 import com.example.verseflow.ui.screens.lyrics.LyricsScreen
@@ -26,7 +25,7 @@ import com.example.verseflow.ui.screens.player.NowPlayingScreen
 import com.example.verseflow.ui.screens.settings.SettingsScreen
 import com.example.verseflow.ui.theme.VerseFlowTheme
 
-private object VerseFlowPreviewData {
+private object CarPreviewData {
     private val repository = MockMusicRepository()
     private val songs = repository.songs()
     private val songsById = songs.associateBy(Song::id)
@@ -44,18 +43,20 @@ private object VerseFlowPreviewData {
     private val basePlayback = PlaybackUiState(
         queue = trendingSongs,
         canonicalQueue = trendingSongs,
-        currentIndex = 1,
-        positionMs = 102_000L,
+        currentIndex = 0,
+        positionMs = 74_000L,
         isPlaying = true,
-        isShuffled = false,
-        repeatMode = RepeatMode.All,
+        isShuffled = true,
+        repeatMode = RepeatMode.One,
         likedSongIds = setOf("song_midnight_circuit", "song_velvet_static"),
         lyricsDisplayMode = LyricsDisplayMode.Synced,
         isQueueSheetVisible = false,
     )
 
     private val baseState = VerseFlowUiState(
-        profile = repository.profile(),
+        profile = repository.profile().copy(
+            settings = repository.profile().settings.copy(useTestArtwork = true),
+        ),
         songs = songs,
         songsById = songsById,
         albums = albums,
@@ -79,8 +80,6 @@ private object VerseFlowPreviewData {
 
     fun home(): VerseFlowUiState = baseState
 
-    fun artist() = artists.first()
-
     fun librarySongs(): VerseFlowUiState = baseState.copy(
         selectedLibraryTab = LibraryTab.Songs,
         selectedLibrarySort = LibrarySort.Title,
@@ -92,6 +91,14 @@ private object VerseFlowPreviewData {
         selectedLibrarySort = LibrarySort.Title,
         selectedLibraryFilter = LibraryFilter.All,
     )
+
+    fun libraryArtists(): VerseFlowUiState = baseState.copy(
+        selectedLibraryTab = LibraryTab.Artists,
+        selectedLibrarySort = LibrarySort.Title,
+        selectedLibraryFilter = LibraryFilter.All,
+    )
+
+    fun settings(): VerseFlowUiState = baseState
 
     fun nowPlaying(): VerseFlowUiState = baseState.copy(
         playback = basePlayback.copy(
@@ -109,51 +116,23 @@ private object VerseFlowPreviewData {
             lyricsDisplayMode = LyricsDisplayMode.Synced,
         ),
     )
-
-    fun settings(): VerseFlowUiState = baseState
-
-    fun withTestArtwork(state: VerseFlowUiState): VerseFlowUiState = state.copy(
-        profile = state.profile.copy(
-            settings = state.profile.settings.copy(useTestArtwork = true),
-        ),
-    )
-
-    fun artistSearch(): VerseFlowUiState = baseState.copy(
-        manualArtistSearch = com.example.verseflow.model.ManualArtistSearchUiState(
-            artistId = artist().id,
-            query = "Akon",
-            isVisible = true,
-            hasSearched = true,
-            results = listOf(
-                com.example.verseflow.model.ArtistSearchCandidate(
-                    pageTitle = "Akon",
-                    description = "Senegalese-American singer, songwriter, rapper, producer, and entrepreneur.",
-                ),
-                com.example.verseflow.model.ArtistSearchCandidate(
-                    pageTitle = "Akon City",
-                    description = "Planned city in Senegal announced by singer Akon.",
-                ),
-            ),
-        ),
-    )
 }
 
 @Preview(
-    name = "VerseFlow Phone",
-    device = "spec:width=412dp,height=915dp,dpi=420",
+    name = "VerseFlow Car",
+    device = "spec:width=1024dp,height=600dp,dpi=240",
     showBackground = true,
     backgroundColor = 0xFF000000,
     uiMode = Configuration.UI_MODE_NIGHT_YES,
 )
-private annotation class VerseFlowPhonePreview
+private annotation class VerseFlowCarPreview
 
 @Composable
-private fun PreviewFrame(
-    useTestArtwork: Boolean = false,
+private fun CarPreviewFrame(
     content: @Composable () -> Unit,
 ) {
     VerseFlowTheme {
-        ProvideCarTestArtwork(enabled = useTestArtwork) {
+        ProvideCarTestArtwork(enabled = true) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -165,12 +144,12 @@ private fun PreviewFrame(
     }
 }
 
-@VerseFlowPhonePreview
+@VerseFlowCarPreview
 @Composable
-private fun PhoneHomeScreenPreview() {
-    PreviewFrame {
+private fun CarHomeScreenPreview() {
+    CarPreviewFrame {
         HomeScreen(
-            uiState = VerseFlowPreviewData.home(),
+            uiState = CarPreviewData.home(),
             onAlbumClick = {},
             onSongClick = {},
             onPlaylistClick = {},
@@ -184,31 +163,12 @@ private fun PhoneHomeScreenPreview() {
     }
 }
 
-@VerseFlowPhonePreview
+@VerseFlowCarPreview
 @Composable
-private fun PhoneHomeScreenTestArtworkPreview() {
-    PreviewFrame(useTestArtwork = true) {
-        HomeScreen(
-            uiState = VerseFlowPreviewData.withTestArtwork(VerseFlowPreviewData.home()),
-            onAlbumClick = {},
-            onSongClick = {},
-            onPlaylistClick = {},
-            onArtistClick = {},
-            onAddAlbumToPlaylist = { _, _ -> },
-            onAddAlbumToPlayQueue = {},
-            onOpenDrawer = {},
-            onOpenSearch = {},
-            onRequestAudioPermission = {},
-        )
-    }
-}
-
-@VerseFlowPhonePreview
-@Composable
-private fun PhoneLibrarySongsPreview() {
-    PreviewFrame {
+private fun CarLibrarySongsScreenPreview() {
+    CarPreviewFrame {
         LibraryScreen(
-            uiState = VerseFlowPreviewData.librarySongs(),
+            uiState = CarPreviewData.librarySongs(),
             onSongClick = {},
             onAlbumClick = {},
             onArtistClick = {},
@@ -230,12 +190,12 @@ private fun PhoneLibrarySongsPreview() {
     }
 }
 
-@VerseFlowPhonePreview
+@VerseFlowCarPreview
 @Composable
-private fun PhoneLibraryAlbumsPreview() {
-    PreviewFrame {
+private fun CarLibraryAlbumsScreenPreview() {
+    CarPreviewFrame {
         LibraryScreen(
-            uiState = VerseFlowPreviewData.libraryAlbums(),
+            uiState = CarPreviewData.libraryAlbums(),
             onSongClick = {},
             onAlbumClick = {},
             onArtistClick = {},
@@ -257,12 +217,12 @@ private fun PhoneLibraryAlbumsPreview() {
     }
 }
 
-@VerseFlowPhonePreview
+@VerseFlowCarPreview
 @Composable
-private fun PhoneLibraryAlbumsTestArtworkPreview() {
-    PreviewFrame(useTestArtwork = true) {
+private fun CarLibraryArtistsScreenPreview() {
+    CarPreviewFrame {
         LibraryScreen(
-            uiState = VerseFlowPreviewData.withTestArtwork(VerseFlowPreviewData.libraryAlbums()),
+            uiState = CarPreviewData.libraryArtists(),
             onSongClick = {},
             onAlbumClick = {},
             onArtistClick = {},
@@ -284,12 +244,12 @@ private fun PhoneLibraryAlbumsTestArtworkPreview() {
     }
 }
 
-@VerseFlowPhonePreview
+@VerseFlowCarPreview
 @Composable
-private fun PhoneNowPlayingPreview() {
-    PreviewFrame {
+private fun CarNowPlayingScreenPreview() {
+    CarPreviewFrame {
         NowPlayingScreen(
-            uiState = VerseFlowPreviewData.nowPlaying(),
+            uiState = CarPreviewData.nowPlaying(),
             onBack = {},
             onPlayPause = {},
             onNext = {},
@@ -314,42 +274,12 @@ private fun PhoneNowPlayingPreview() {
     }
 }
 
-@VerseFlowPhonePreview
+@VerseFlowCarPreview
 @Composable
-private fun PhoneNowPlayingTestArtworkPreview() {
-    PreviewFrame(useTestArtwork = true) {
-        NowPlayingScreen(
-            uiState = VerseFlowPreviewData.withTestArtwork(VerseFlowPreviewData.nowPlaying()),
-            onBack = {},
-            onPlayPause = {},
-            onNext = {},
-            onPrevious = {},
-            onSeek = {},
-            onToggleShuffle = {},
-            onCycleRepeat = {},
-            onToggleLike = {},
-            onQueueVisibilityChange = {},
-            onQueueSongSelected = {},
-            onSearchRequested = {},
-            onRemoveFromVerseFlow = {},
-            onAddSongToPlaylist = { _, _ -> },
-            onAddSongToPlayQueue = {},
-            onToggleSongLike = {},
-            onDeleteFromStorage = {},
-            onEditMusicInfo = {},
-            onArtistRequested = {},
-            onAlbumRequested = {},
-            onLyricsRequested = {},
-        )
-    }
-}
-
-@VerseFlowPhonePreview
-@Composable
-private fun PhoneLyricsPreview() {
-    PreviewFrame {
+private fun CarLyricsScreenPreview() {
+    CarPreviewFrame {
         LyricsScreen(
-            uiState = VerseFlowPreviewData.lyrics(),
+            uiState = CarPreviewData.lyrics(),
             onBack = {},
             onModeSelected = {},
             onSeek = {},
@@ -367,35 +297,12 @@ private fun PhoneLyricsPreview() {
     }
 }
 
-@VerseFlowPhonePreview
+@VerseFlowCarPreview
 @Composable
-private fun PhoneLyricsTestArtworkPreview() {
-    PreviewFrame(useTestArtwork = true) {
-        LyricsScreen(
-            uiState = VerseFlowPreviewData.withTestArtwork(VerseFlowPreviewData.lyrics()),
-            onBack = {},
-            onModeSelected = {},
-            onSeek = {},
-            onPlayPause = {},
-            onNext = {},
-            onPrevious = {},
-            onNowPlayingRequested = {},
-            onManualSearchRequested = {},
-            onManualSearchDismissed = {},
-            onManualSearchTitleChange = {},
-            onManualSearchArtistChange = {},
-            onManualSearchExecute = {},
-            onManualCandidateSelected = {},
-        )
-    }
-}
-
-@VerseFlowPhonePreview
-@Composable
-private fun PhoneSettingsPreview() {
-    PreviewFrame {
+private fun CarSettingsScreenPreview() {
+    CarPreviewFrame {
         SettingsScreen(
-            uiState = VerseFlowPreviewData.settings(),
+            uiState = CarPreviewData.settings(),
             onOpenDrawer = {},
             onOpenSearch = {},
             onProfileNameChange = {},
@@ -407,35 +314,6 @@ private fun PhoneSettingsPreview() {
             onExplicitContentChange = {},
             onLanguageSelected = {},
             onUseTestArtworkChange = {},
-        )
-    }
-}
-
-@VerseFlowPhonePreview
-@Composable
-private fun PhoneArtistSearchPreview() {
-    PreviewFrame {
-        ArtistDetailScreen(
-            artist = VerseFlowPreviewData.artist(),
-            uiState = VerseFlowPreviewData.artistSearch(),
-            onBack = {},
-            onPlayTopTracks = {},
-            onSearchArtistInfo = {},
-            onOpenManualArtistSearch = {},
-            onDismissArtistLookupMessage = {},
-            onDismissManualArtistSearch = {},
-            onManualArtistSearchQueryChange = {},
-            onManualArtistSearchExecute = {},
-            onManualArtistCandidateSelected = {},
-            onAlbumClick = {},
-            onSongClick = {},
-            onArtistClick = {},
-            onRemoveFromVerseFlow = {},
-            onAddSongToPlaylist = { _, _ -> },
-            onAddSongToPlayQueue = {},
-            onToggleSongLike = {},
-            onDeleteFromStorage = {},
-            onEditMusicInfo = {},
         )
     }
 }

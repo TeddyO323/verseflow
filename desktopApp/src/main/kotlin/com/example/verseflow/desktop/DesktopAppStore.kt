@@ -11,6 +11,7 @@ data class DesktopSettingsSnapshot(
     val isRepeatEnabled: Boolean = true,
     val autoRescanEnabled: Boolean = false,
     val musixmatchApiKey: String = "",
+    val lastFmApiKey: String = "",
 )
 
 data class DesktopPlaybackSessionSnapshot(
@@ -25,6 +26,7 @@ data class DesktopTrackMetadataOverride(
     val artist: String? = null,
     val album: String? = null,
     val genre: String? = null,
+    val releaseDate: String? = null,
 )
 
 data class DesktopArtistProfileOverride(
@@ -61,6 +63,7 @@ class DesktopAppStore {
             isRepeatEnabled = preferences.getBoolean(KEY_REPEAT_ENABLED, true),
             autoRescanEnabled = preferences.getBoolean(KEY_AUTO_RESCAN_ENABLED, false),
             musixmatchApiKey = preferences.get(KEY_MUSIXMATCH_API_KEY, null)?.trim().orEmpty(),
+            lastFmApiKey = preferences.get(KEY_LAST_FM_API_KEY, null)?.trim().orEmpty(),
         )
 
     fun saveSettings(settings: DesktopSettingsSnapshot) {
@@ -73,6 +76,11 @@ class DesktopAppStore {
             preferences.remove(KEY_MUSIXMATCH_API_KEY)
         } else {
             preferences.put(KEY_MUSIXMATCH_API_KEY, settings.musixmatchApiKey)
+        }
+        if (settings.lastFmApiKey.isBlank()) {
+            preferences.remove(KEY_LAST_FM_API_KEY)
+        } else {
+            preferences.put(KEY_LAST_FM_API_KEY, settings.lastFmApiKey)
         }
     }
 
@@ -186,6 +194,7 @@ class DesktopAppStore {
                         artist = overridePayload.optString("artist").ifBlank { null },
                         album = overridePayload.optString("album").ifBlank { null },
                         genre = overridePayload.optString("genre").ifBlank { null },
+                        releaseDate = overridePayload.optString("releaseDate").ifBlank { null },
                     )
                 }
                 .toMap()
@@ -205,7 +214,8 @@ class DesktopAppStore {
                     .put("title", value.title.orEmpty())
                     .put("artist", value.artist.orEmpty())
                     .put("album", value.album.orEmpty())
-                    .put("genre", value.genre.orEmpty()),
+                    .put("genre", value.genre.orEmpty())
+                    .put("releaseDate", value.releaseDate.orEmpty()),
             )
         }
         preferences.put(KEY_TRACK_OVERRIDES, payload.toString())
@@ -499,6 +509,7 @@ class DesktopAppStore {
         const val KEY_REPEAT_ENABLED = "desktop_repeat_enabled"
         const val KEY_AUTO_RESCAN_ENABLED = "desktop_auto_rescan_enabled"
         const val KEY_MUSIXMATCH_API_KEY = "desktop_musixmatch_api_key"
+        const val KEY_LAST_FM_API_KEY = "desktop_last_fm_api_key"
         const val KEY_PLAYBACK_SESSION = "desktop_playback_session_json"
         const val KEY_RECENT_SEARCHES = "desktop_recent_searches_json"
         const val KEY_ARTIST_SPOTLIGHT_ORDER = "desktop_artist_spotlight_order_json"

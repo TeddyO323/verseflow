@@ -39,6 +39,7 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
+            modules("java.net.http")
             packageName = "VerseFlow"
             packageVersion = "1.0.0"
             description = "A cinematic local music player concept for macOS."

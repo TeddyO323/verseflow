@@ -218,14 +218,14 @@ fun ArtworkReactiveBackdrop(
     }
     val reactivePalette = backdrop?.palette ?: palette
     val isMonochromeArtwork = backdrop?.isMonochrome == true
-    val backgroundScale = if (isCarLandscapeMode) 2.05f else 1.72f
+    val backgroundScale = if (isCarLandscapeMode) 2.55f else 1.72f
     val backgroundAlpha = if (isCarLandscapeMode) {
-        if (isMonochromeArtwork) 0.80f else 0.74f
+        if (isMonochromeArtwork) 0.58f else 0.52f
     } else {
         if (isMonochromeArtwork) 0.78f else 0.72f
     }
-    val backdropBlur = if (isCarLandscapeMode) 190.dp else 168.dp
-    val foregroundAlpha = if (isCarLandscapeMode) 0.02f else if (isMonochromeArtwork) 0.02f else 0.03f
+    val backdropBlur = if (isCarLandscapeMode) 280.dp else 168.dp
+    val foregroundAlpha = if (isCarLandscapeMode) 0f else if (isMonochromeArtwork) 0.02f else 0.03f
 
     Box(modifier = modifier.background(Color.Black)) {
         if (artwork != null) {
@@ -256,22 +256,24 @@ fun ArtworkReactiveBackdrop(
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                Color.Black.copy(alpha = if (isCarLandscapeMode) 0.16f else 0.28f),
+                                Color.Black.copy(alpha = if (isCarLandscapeMode) 0.34f else 0.28f),
                                 reactivePalette.background.copy(alpha = if (isCarLandscapeMode) {
-                                    if (isMonochromeArtwork) 0.08f else 0.18f
+                                    if (isMonochromeArtwork) 0.04f else 0.10f
                                 } else {
                                     if (isMonochromeArtwork) 0.12f else 0.22f
                                 }),
-                                Color.Black.copy(alpha = if (isCarLandscapeMode) 0.52f else 0.72f),
+                                Color.Black.copy(alpha = if (isCarLandscapeMode) 0.76f else 0.72f),
                             ),
                         ),
                     ),
             )
-            AuroraBackdrop(
-                palette = reactivePalette,
-                backgroundAlpha = if (isMonochromeArtwork) 0.08f else 0.18f,
-                modifier = Modifier.fillMaxSize(),
-            )
+            if (!isCarLandscapeMode) {
+                AuroraBackdrop(
+                    palette = reactivePalette,
+                    backgroundAlpha = if (isMonochromeArtwork) 0.08f else 0.18f,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         } else {
             AuroraBackdrop(
                 palette = palette,

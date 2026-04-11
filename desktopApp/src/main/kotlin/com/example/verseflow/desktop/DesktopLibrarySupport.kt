@@ -196,7 +196,7 @@ fun summarizeAlbums(tracks: List<DesktopTrack>): List<DesktopAlbumSummary> =
             DesktopAlbumSummary(
                 title = first.album,
                 artist = first.albumArtist,
-                genre = groupedTracks.map(DesktopTrack::genre).groupingBy { it }.eachCount().maxByOrNull { it.value }?.key ?: "Unclassified",
+                genre = groupedTracks.map(DesktopTrack::genre).groupingBy { it }.eachCount().maxByOrNull { it.value }?.key ?: "No genre",
                 releaseDate = groupedTracks.mapNotNull(DesktopTrack::releaseDate).firstOrNull(),
                 trackCount = groupedTracks.size,
                 durationMs = groupedTracks.sumOf(DesktopTrack::durationMs),
@@ -232,7 +232,7 @@ fun summarizeArtists(tracks: List<DesktopTrack>): List<DesktopArtistSummary> =
 
 fun summarizeGenres(tracks: List<DesktopTrack>): List<Pair<String, Int>> =
     tracks
-        .groupingBy { it.genre.ifBlank { "Unclassified" } }
+        .groupingBy { it.genre.ifBlank { "No genre" } }
         .eachCount()
         .toList()
         .sortedByDescending { it.second }
@@ -258,7 +258,7 @@ private fun readDesktopTrack(path: Path): DesktopTrack? {
             artistCredits.firstOrNull().orEmpty().ifBlank { artist }
         }
         val album = tag?.getFirst(FieldKey.ALBUM).orEmpty().ifBlank { albumFallback }
-        val genre = tag?.getFirst(FieldKey.GENRE).orEmpty().ifBlank { "Unclassified" }
+        val genre = tag?.getFirst(FieldKey.GENRE).orEmpty().ifBlank { "No genre" }
         val releaseDate = tag?.getFirst(FieldKey.YEAR).orEmpty().trim().ifBlank { null }
         val durationMs = ((header?.trackLength ?: 0) * 1000L).coerceAtLeast(0L)
         val localLyrics = loadDesktopLocalLyrics(path)
@@ -278,7 +278,7 @@ private fun readDesktopTrack(path: Path): DesktopTrack? {
             album = album,
             genre = genre,
             durationMs = durationMs,
-            mood = genre.takeIf { it.isNotBlank() && it != "Unclassified" } ?: "Local file",
+            mood = genre.takeIf { it.isNotBlank() && it != "No genre" } ?: "Local file",
             palette = paletteFromArtworkBytes(artworkBytes) ?: paletteFromSeed("$artist::$album::$title"),
             lyrics = localLyrics.syncedLyrics,
             plainLyrics = localLyrics.plainLyrics,
@@ -302,7 +302,7 @@ private fun readDesktopTrack(path: Path): DesktopTrack? {
             artistCredits = artistCredits,
             albumArtist = artistCredits.firstOrNull().orEmpty().ifBlank { artistFallback },
             album = albumFallback,
-            genre = "Unclassified",
+            genre = "No genre",
             durationMs = 0L,
             mood = "Local file",
             palette = paletteFromSeed(seed),
