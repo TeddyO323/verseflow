@@ -8,7 +8,7 @@ It is designed around one core experience: a cinematic local music player with a
 
 The project currently focuses on:
 
-- polished Android phone, Android Auto, and macOS desktop UI
+- polished Android phone, Android Auto, macOS desktop, and Windows desktop UI
 - local on-device music playback
 - album-art-reactive visuals
 - synced and plain lyrics discovery
@@ -106,10 +106,10 @@ Currently available:
 - Android phone app
 - Android Auto / car-installed Android build
 - macOS desktop app
+- Windows desktop app
 
 Still being built:
 
-- Windows desktop app
 - iOS app
 
 ## Status
@@ -119,6 +119,7 @@ Current state:
 - Android phone app is runnable and usable on a real device
 - Android Auto / car-installed Android flow is available for in-car testing
 - macOS desktop app is implemented and packaged as a DMG
+- Windows desktop app is implemented and packaged as an EXE / MSI
 - local songs can be loaded from device storage through `MediaStore`
 - real audio playback works for local files
 - playback continues in the background for local songs
@@ -553,7 +554,6 @@ Possible next steps:
   - karaoke word timing
   - lyric source picker
 - real metadata rewriting to audio files
-- Windows desktop app
 - iOS app
 
 ## macOS Desktop App
@@ -570,6 +570,20 @@ Current desktop capabilities include:
 - desktop-only theme system, including immersive artwork tinting
 - DMG packaging for local distribution
 
+## Windows Desktop App
+
+VerseFlow also has a working Windows desktop build powered by the same Compose Desktop app used on macOS.
+
+Current Windows desktop capabilities include:
+
+- local library scanning
+- desktop playback and now playing
+- synced and plain lyrics
+- artist, album, and song metadata search
+- play history recaps and listening patterns
+- immersive and monochrome desktop themes
+- EXE and MSI packaging for distribution
+
 ## Android Auto
 
 VerseFlow also includes an Android Auto / car-oriented Android experience.
@@ -584,7 +598,7 @@ Current Android Auto and car-focused work includes:
 
 ## Notes
 
-- This repository now represents a multi-surface VerseFlow project spanning Android phone, Android Auto experimentation, and macOS desktop.
+- This repository now represents a multi-surface VerseFlow project spanning Android phone, Android Auto experimentation, macOS desktop, and Windows desktop.
 - The project has intentionally prioritized design polish, local playback, and lyrics-first UX before broader platform expansion.
 
 ## License
