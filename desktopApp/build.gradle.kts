@@ -11,13 +11,19 @@ kotlin {
 }
 
 val javafxVersion = "21.0.2"
+val currentOsName = System.getProperty("os.name")
 val javafxPlatform = when {
-    System.getProperty("os.name").startsWith("Mac", ignoreCase = true) &&
+    currentOsName.startsWith("Mac", ignoreCase = true) &&
         System.getProperty("os.arch") in setOf("aarch64", "arm64") -> "mac-aarch64"
-    System.getProperty("os.name").startsWith("Mac", ignoreCase = true) -> "mac"
-    System.getProperty("os.name").startsWith("Windows", ignoreCase = true) -> "win"
+    currentOsName.startsWith("Mac", ignoreCase = true) -> "mac"
+    currentOsName.startsWith("Windows", ignoreCase = true) -> "win"
     System.getProperty("os.arch") in setOf("aarch64", "arm64") -> "linux-aarch64"
     else -> "linux"
+}
+val nativeTargetFormats = when {
+    currentOsName.startsWith("Mac", ignoreCase = true) -> arrayOf(TargetFormat.Dmg)
+    currentOsName.startsWith("Windows", ignoreCase = true) -> arrayOf(TargetFormat.Msi, TargetFormat.Exe)
+    else -> emptyArray()
 }
 
 dependencies {
@@ -38,17 +44,26 @@ compose.desktop {
         mainClass = "com.example.verseflow.desktop.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg)
+            if (nativeTargetFormats.isNotEmpty()) {
+                targetFormats(*nativeTargetFormats)
+            }
             modules("java.net.http")
             packageName = "VerseFlow"
             packageVersion = "1.0.0"
-            description = "A cinematic local music player concept for macOS."
+            description = "A cinematic local music player for desktop."
             vendor = "VerseFlow"
             copyright = "© 2026 VerseFlow"
 
             macOS {
                 bundleID = "com.example.verseflow.desktop"
                 dockName = "VerseFlow"
+            }
+
+            windows {
+                menuGroup = "VerseFlow"
+                shortcut = true
+                dirChooser = true
+                perUserInstall = true
             }
         }
     }

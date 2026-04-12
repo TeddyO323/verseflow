@@ -6,12 +6,17 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 
-fun main() = application {
+fun main(args: Array<String>) = application {
+    val previewMode = args.any { it == "--preview" } ||
+        System.getProperty("verseflow.desktop.preview")
+            ?.equals("true", ignoreCase = true) == true ||
+        System.getenv("VERSEFLOW_DESKTOP_PREVIEW")
+            ?.equals("true", ignoreCase = true) == true
     Window(
         onCloseRequest = ::exitApplication,
-        title = "VerseFlow",
+        title = if (previewMode) "VerseFlow Preview" else "VerseFlow",
         state = rememberWindowState(size = DpSize(1440.dp, 920.dp)),
     ) {
-        VerseFlowDesktopApp()
+        VerseFlowDesktopApp(previewMode = previewMode)
     }
 }

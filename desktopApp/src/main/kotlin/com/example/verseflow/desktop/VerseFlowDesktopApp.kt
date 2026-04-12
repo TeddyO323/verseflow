@@ -17,6 +17,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -724,6 +725,34 @@ private data class DesktopNavigationSnapshot(
     val selectedArtistName: String?,
 )
 
+private enum class DesktopPreviewScenario(val label: String) {
+    Home("Home"),
+    Songs("Songs"),
+    Albums("Albums"),
+    Artists("Artists"),
+    Playlist("Playlist"),
+    Album("Album"),
+    Artist("Artist"),
+    Queue("Queue"),
+    History("History"),
+    NowPlaying("Now Playing"),
+    Lyrics("Lyrics"),
+    Settings("Settings"),
+}
+
+private data class DesktopPreviewData(
+    val libraryState: DesktopLibraryUiState,
+    val playHistoryEntries: List<DesktopPlayHistoryEntry>,
+    val favoriteTrackPaths: List<String>,
+    val userPlaylists: List<DesktopUserPlaylist>,
+    val artistProfileOverrides: Map<String, DesktopArtistProfileOverride>,
+    val albumProfileOverrides: Map<String, DesktopAlbumProfileOverride>,
+    val initialTrackId: String,
+    val initialAlbumKey: String,
+    val initialArtistName: String,
+    val initialPlaylistId: String,
+)
+
 private data class DesktopArtistLookupCandidate(
     val pageTitle: String,
     val snippet: String,
@@ -771,10 +800,13 @@ private fun desktopLastFmApiKey(settingsValue: String): String =
     }
 
 @Composable
-fun VerseFlowDesktopApp() {
+fun VerseFlowDesktopApp(previewMode: Boolean = false) {
     val appStore = remember { DesktopAppStore() }
     val libraryStore = remember { DesktopLibraryStore() }
     val playlistStore = remember { DesktopPlaylistStore() }
+    val previewData = remember(previewMode) {
+        if (previewMode) buildDesktopPreviewData() else null
+    }
     val desktopThemes = remember {
         listOf(
             DesktopThemePreset("Nebula Dark", "Original cinematic dark theme"),
@@ -799,19 +831,20 @@ fun VerseFlowDesktopApp() {
     val playbackState by playbackController.state.collectAsState()
     var libraryState by remember {
         mutableStateOf(
-            DesktopLibraryUiState(
+            previewData?.libraryState ?: DesktopLibraryUiState(
                 sourcePaths = libraryStore.loadLibraryPaths(),
             ),
         )
     }
-    var section by remember { mutableStateOf(DesktopSection.Home) }
+    var section by remember(previewMode) { mutableStateOf(DesktopSection.Home) }
     var libraryTab by remember { mutableStateOf(DesktopLibraryTab.Songs) }
+    var previewScenario by remember(previewMode) { mutableStateOf(DesktopPreviewScenario.Home) }
     var nowPlayingReturnSnapshot by remember { mutableStateOf<DesktopNavigationSnapshot?>(null) }
     var isSidebarCollapsed by remember { mutableStateOf(libraryStore.loadSidebarCollapsed()) }
-    var selectedPlaylistId by remember { mutableStateOf<String?>(null) }
-    var selectedAlbumKey by remember { mutableStateOf<String?>(null) }
-    var selectedArtistName by remember { mutableStateOf<String?>(null) }
-    var currentTrackId by remember { mutableStateOf<String?>(null) }
+    var selectedPlaylistId by remember(previewMode) { mutableStateOf<String?>(previewData?.initialPlaylistId) }
+    var selectedAlbumKey by remember(previewMode) { mutableStateOf<String?>(previewData?.initialAlbumKey) }
+    var selectedArtistName by remember(previewMode) { mutableStateOf<String?>(previewData?.initialArtistName) }
+    var currentTrackId by remember(previewMode) { mutableStateOf<String?>(previewData?.initialTrackId) }
     var searchQuery by remember { mutableStateOf("") }
     var recentSearches by remember { mutableStateOf(appStore.loadRecentSearches()) }
     var artistSpotlightOrder by remember { mutableStateOf(appStore.loadArtistSpotlightOrder()) }
@@ -828,24 +861,24 @@ fun VerseFlowDesktopApp() {
     var musixmatchApiKey by remember { mutableStateOf(storedSettings.musixmatchApiKey) }
     var lastFmApiKey by remember { mutableStateOf(storedSettings.lastFmApiKey) }
     var lyricsStatuses by remember { mutableStateOf<Map<String, DesktopLyricsLoadState>>(emptyMap()) }
-    var playHistoryEntries by remember { mutableStateOf(appStore.loadPlayHistory()) }
+    var playHistoryEntries by remember(previewMode) { mutableStateOf(previewData?.playHistoryEntries ?: appStore.loadPlayHistory()) }
     var recentTrackIds by remember { mutableStateOf(playHistoryEntries.toRecentTrackIds()) }
     var playCounts by remember { mutableStateOf(playHistoryEntries.toPlayCounts()) }
-    var userPlaylists by remember { mutableStateOf(playlistStore.loadPlaylists()) }
-    var favoriteTrackPaths by remember { mutableStateOf(libraryStore.loadFavoriteTrackPaths()) }
+    var userPlaylists by remember(previewMode) { mutableStateOf(previewData?.userPlaylists ?: playlistStore.loadPlaylists()) }
+    var favoriteTrackPaths by remember(previewMode) { mutableStateOf(previewData?.favoriteTrackPaths ?: libraryStore.loadFavoriteTrackPaths()) }
     var hiddenTrackPaths by remember { mutableStateOf(appStore.loadHiddenTrackPaths()) }
     var trackOverrides by remember { mutableStateOf(appStore.loadTrackOverrides()) }
-    var artistProfileOverrides by remember { mutableStateOf(appStore.loadArtistProfileOverrides()) }
-    var albumProfileOverrides by remember { mutableStateOf(appStore.loadAlbumProfileOverrides()) }
+    var artistProfileOverrides by remember(previewMode) { mutableStateOf(previewData?.artistProfileOverrides ?: appStore.loadArtistProfileOverrides()) }
+    var albumProfileOverrides by remember(previewMode) { mutableStateOf(previewData?.albumProfileOverrides ?: appStore.loadAlbumProfileOverrides()) }
     var artistLookupUiState by remember { mutableStateOf(DesktopArtistLookupUiState()) }
     var artistManualSearchUiState by remember { mutableStateOf(DesktopArtistManualSearchUiState()) }
     var albumLookupUiState by remember { mutableStateOf(DesktopAlbumLookupUiState()) }
     var albumManualSearchUiState by remember { mutableStateOf(DesktopAlbumManualSearchUiState()) }
     var trackLookupUiState by remember { mutableStateOf(DesktopTrackLookupUiState()) }
     var trackManualSearchUiState by remember { mutableStateOf(DesktopTrackManualSearchUiState()) }
-    var pendingPlaybackSession by remember { mutableStateOf(appStore.loadPlaybackSession()) }
-    var queueTrackPaths by remember { mutableStateOf<List<String>>(emptyList()) }
-    var queueLabel by remember { mutableStateOf("All Songs") }
+    var pendingPlaybackSession by remember(previewMode) { mutableStateOf(if (previewMode) null else appStore.loadPlaybackSession()) }
+    var queueTrackPaths by remember(previewMode) { mutableStateOf(previewData?.libraryState?.tracks?.map(DesktopTrack::path) ?: emptyList()) }
+    var queueLabel by remember(previewMode) { mutableStateOf(if (previewMode) "Preview Queue" else "All Songs") }
     var activeHistoryTrackId by remember { mutableStateOf<String?>(null) }
     var activeHistoryTrackPath by remember { mutableStateOf<String?>(null) }
     var activeHistoryAccumulatedMs by remember { mutableStateOf(0L) }
@@ -1196,6 +1229,48 @@ fun VerseFlowDesktopApp() {
             nowPlayingReturnSnapshot = captureNavigationSnapshot()
         }
         section = DesktopSection.NowPlaying
+    }
+
+    fun openPreviewScenario(scenario: DesktopPreviewScenario) {
+        previewScenario = scenario
+        when (scenario) {
+            DesktopPreviewScenario.Home -> section = DesktopSection.Home
+            DesktopPreviewScenario.Songs -> {
+                libraryTab = DesktopLibraryTab.Songs
+                section = DesktopSection.Library
+            }
+            DesktopPreviewScenario.Albums -> {
+                libraryTab = DesktopLibraryTab.Albums
+                section = DesktopSection.Library
+            }
+            DesktopPreviewScenario.Artists -> {
+                libraryTab = DesktopLibraryTab.Artists
+                section = DesktopSection.Library
+            }
+            DesktopPreviewScenario.Playlist -> {
+                selectedPlaylistId = previewData?.initialPlaylistId ?: selectedPlaylistId
+                section = DesktopSection.PlaylistDetail
+            }
+            DesktopPreviewScenario.Album -> {
+                selectedAlbumKey = previewData?.initialAlbumKey ?: selectedAlbumKey
+                section = DesktopSection.AlbumDetail
+            }
+            DesktopPreviewScenario.Artist -> {
+                selectedArtistName = previewData?.initialArtistName ?: selectedArtistName
+                section = DesktopSection.ArtistDetail
+            }
+            DesktopPreviewScenario.Queue -> section = DesktopSection.PlayQueue
+            DesktopPreviewScenario.History -> section = DesktopSection.PlayHistory
+            DesktopPreviewScenario.NowPlaying -> {
+                currentTrackId = previewData?.initialTrackId ?: currentTrackId
+                section = DesktopSection.NowPlaying
+            }
+            DesktopPreviewScenario.Lyrics -> {
+                currentTrackId = previewData?.initialTrackId ?: currentTrackId
+                section = DesktopSection.Lyrics
+            }
+            DesktopPreviewScenario.Settings -> section = DesktopSection.Settings
+        }
     }
 
     fun restoreFromNowPlaying() {
@@ -2099,36 +2174,42 @@ fun VerseFlowDesktopApp() {
     }
 
     LaunchedEffect(Unit) {
-        libraryState.sourcePaths
-            .takeIf { it.isNotEmpty() }
-            ?.map(Path::of)
-            ?.let(::scanFolders)
+        if (!previewMode) {
+            libraryState.sourcePaths
+                .takeIf { it.isNotEmpty() }
+                ?.map(Path::of)
+                ?.let(::scanFolders)
+        }
     }
 
     LaunchedEffect(displayName, selectedTheme, isShuffleEnabled, isRepeatEnabled, autoRescanEnabled, musixmatchApiKey, lastFmApiKey) {
-        appStore.saveSettings(
-            DesktopSettingsSnapshot(
-                displayName = displayName,
-                selectedTheme = selectedTheme,
-                isShuffleEnabled = isShuffleEnabled,
-                isRepeatEnabled = isRepeatEnabled,
-                autoRescanEnabled = autoRescanEnabled,
-                musixmatchApiKey = musixmatchApiKey,
-                lastFmApiKey = lastFmApiKey,
-            ),
-        )
+        if (!previewMode) {
+            appStore.saveSettings(
+                DesktopSettingsSnapshot(
+                    displayName = displayName,
+                    selectedTheme = selectedTheme,
+                    isShuffleEnabled = isShuffleEnabled,
+                    isRepeatEnabled = isRepeatEnabled,
+                    autoRescanEnabled = autoRescanEnabled,
+                    musixmatchApiKey = musixmatchApiKey,
+                    lastFmApiKey = lastFmApiKey,
+                ),
+            )
+        }
     }
 
     LaunchedEffect(Unit) {
-        snapshotFlow {
-            buildPlaybackSessionSnapshot(
-                positionMs = ((playbackState.positionMs / 2_000L) * 2_000L).coerceAtLeast(0L),
-            )
-        }
-            .distinctUntilChanged()
-            .collect { snapshot ->
-                appStore.savePlaybackSession(snapshot)
+        if (!previewMode) {
+            snapshotFlow {
+                buildPlaybackSessionSnapshot(
+                    positionMs = ((playbackState.positionMs / 2_000L) * 2_000L).coerceAtLeast(0L),
+                )
             }
+                .distinctUntilChanged()
+                .collect { snapshot ->
+                    appStore.savePlaybackSession(snapshot)
+                }
+        }
     }
 
     LaunchedEffect(playbackController, tracks) {
@@ -2393,6 +2474,12 @@ fun VerseFlowDesktopApp() {
                             ),
                         verticalArrangement = Arrangement.spacedBy(if (isPageOwnedChromeSection) 0.dp else 18.dp),
                     ) {
+                        if (previewMode) {
+                            DesktopPreviewToolbar(
+                                selectedScenario = previewScenario,
+                                onScenarioSelect = ::openPreviewScenario,
+                            )
+                        }
                         if (!isPageOwnedChromeSection) {
                             DesktopTopBar(
                                 searchQuery = searchQuery,
@@ -2973,7 +3060,7 @@ fun VerseFlowDesktopApp() {
                     title = { Text("Delete from device", fontFamily = FontFamily.SansSerif) },
                     text = {
                         Text(
-                            "Delete ${track.title} by ${track.artist} from this Mac? This removes the real file from storage.",
+                            "Delete ${track.title} by ${track.artist} from this computer? This removes the real file from storage.",
                             fontFamily = FontFamily.SansSerif,
                         )
                     },
@@ -3038,7 +3125,7 @@ private fun DesktopSidebar(
                             fontFamily = FontFamily.SansSerif,
                         )
                         Text(
-                            text = "macOS player",
+                            text = "Desktop player",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontFamily = FontFamily.SansSerif,
@@ -3093,6 +3180,50 @@ private fun DesktopSidebar(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DesktopPreviewToolbar(
+    selectedScenario: DesktopPreviewScenario,
+    onScenarioSelect: (DesktopPreviewScenario) -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        shape = RectangleShape,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Preview Lab",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium,
+                fontFamily = FontFamily.SansSerif,
+            )
+            DesktopPreviewScenario.entries.forEach { scenario ->
+                val selected = scenario == selectedScenario
+                Surface(
+                    color = if (selected) MaterialTheme.colorScheme.secondary.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                    shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.clickable { onScenarioSelect(scenario) },
+                ) {
+                    Text(
+                        text = scenario.label,
+                        color = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = FontFamily.SansSerif,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    )
+                }
             }
         }
     }
@@ -3161,7 +3292,7 @@ private fun DesktopTopBar(
                             contentDescription = "Search",
                         )
                     },
-                    label = { Text("Search your Mac library") },
+                    label = { Text("Search your desktop library") },
                 )
                 IconButton(onClick = onOpenSearch) {
                     Icon(
@@ -3185,7 +3316,7 @@ private fun DesktopTopBar(
                             tint = MaterialTheme.colorScheme.secondary,
                         )
                         Text(
-                            text = "Mac shell ready",
+                            text = "Desktop shell ready",
                             color = MaterialTheme.colorScheme.secondary,
                             fontFamily = FontFamily.SansSerif,
                         )
@@ -3537,9 +3668,9 @@ private fun DesktopHome(
                     HeroPanel(
                         title = "Welcome, $name",
                         subtitle = when {
-                            isScanning -> "VerseFlow is scanning your Mac music folders and preparing your desktop library."
+                            isScanning -> "VerseFlow is scanning your music folders and preparing your desktop library."
                             errorMessage != null -> errorMessage
-                            libraryRootPath == null -> "Choose one or more music folders on your Mac to import local songs into VerseFlow Desktop."
+                            libraryRootPath == null -> "Choose one or more music folders to import local songs into VerseFlow Desktop."
                             else -> "No supported audio files were found in the selected folders yet. Pick another folder or add music files."
                         },
                         ctaPrimary = "Choose Folders",
@@ -3550,7 +3681,7 @@ private fun DesktopHome(
                 } else {
                     HeroPanel(
                         title = "${desktopGreetingForNow()}, $name",
-                        subtitle = "Your Mac library is now inside VerseFlow. Home highlights where to resume, what fits the moment, and who is shaping your rotation right now.",
+                        subtitle = "Your desktop library is now inside VerseFlow. Home highlights where to resume, what fits the moment, and who is shaping your rotation right now.",
                         ctaPrimary = "Open Player",
                         ctaSecondary = "View Lyrics",
                         onPrimary = onOpenNowPlaying,
@@ -4146,11 +4277,11 @@ private fun DesktopLibrary(
                 ) {
                 if (tracks.isEmpty()) {
                     EmptyDesktopPanel(
-                        title = if (isScanning) "Scanning your Mac library" else "No songs yet",
+                        title = if (isScanning) "Scanning your desktop library" else "No songs yet",
                         body = errorMessage ?: if (isScanning) {
                             "VerseFlow is importing local files from your selected folders."
                         } else {
-                            "Choose one or more folders on your Mac to start building the desktop library."
+                            "Choose one or more folders to start building the desktop library."
                         },
                         actionLabel = "Choose Folders",
                         onAction = onChooseFolder,
@@ -5097,7 +5228,7 @@ private fun DesktopNowPlaying(
     if (track == null) {
         EmptyDesktopPanel(
             title = "No track loaded",
-            body = "Choose one or more folders, import songs, then select one from Library to start building the Mac playback flow.",
+            body = "Choose one or more folders, import songs, then select one from Library to start building the desktop playback flow.",
             actionLabel = "Choose Folders",
             onAction = onChooseFolder,
         )
@@ -6026,7 +6157,7 @@ private fun DesktopArtistDetail(
                                     item {
                                         EmptyDesktopPanel(
                                             title = "No tracks for this artist",
-                                            body = "VerseFlow could not find tracks linked to this artist in your Mac library.",
+                                            body = "VerseFlow could not find tracks linked to this artist in your desktop library.",
                                         )
                                     }
                                 } else {
@@ -6047,7 +6178,7 @@ private fun DesktopArtistDetail(
                                     item {
                                         EmptyDesktopPanel(
                                             title = "No albums yet",
-                                            body = "This artist does not have album-grouped tracks in your current Mac library scan.",
+                                            body = "This artist does not have album-grouped tracks in your current desktop library scan.",
                                         )
                                     }
                                 } else {
@@ -6069,7 +6200,7 @@ private fun DesktopArtistDetail(
                                     item {
                                         EmptyDesktopPanel(
                                             title = "No feature appearances",
-                                            body = "VerseFlow has not found this artist as a featured guest on other tracks in your Mac library yet.",
+                                            body = "VerseFlow has not found this artist as a featured guest on other tracks in your desktop library yet.",
                                         )
                                     }
                                 } else {
@@ -6597,13 +6728,13 @@ private fun DesktopLyrics(
                 lyricsStatus == DesktopLyricsLoadState.Unavailable -> {
                     EmptyDesktopPanel(
                         title = "No lyrics found",
-                        body = "VerseFlow could not find a reliable lyrics match for this Mac track from the current local and online sources.",
+                        body = "VerseFlow could not find a reliable lyrics match for this desktop track from the current local and online sources.",
                     )
                 }
                 else -> {
                     EmptyDesktopPanel(
                         title = "Lyrics desktop pass is next",
-                        body = "Pick a track and VerseFlow will search for lyrics automatically as the Mac playback flow grows.",
+                        body = "Pick a track and VerseFlow will search for lyrics automatically as the desktop playback flow grows.",
                     )
                 }
             }
@@ -6731,7 +6862,7 @@ private fun DesktopTrackEditDialog(
                     }
                 }
                 Text(
-                    "These edits are VerseFlow-only overrides for the Mac app. The original audio file tags stay untouched.",
+                    "These edits are VerseFlow-only overrides for the desktop app. The original audio file tags stay untouched.",
                     fontFamily = FontFamily.SansSerif,
                     color = MutedLavender,
                     style = MaterialTheme.typography.bodySmall,
@@ -6797,7 +6928,7 @@ private fun DesktopManualLyricsDialog(
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Search lyrics", color = FrostWhite, style = MaterialTheme.typography.headlineMedium)
                         Text(
-                            "Search manually and save the selected lyrics for this track on your Mac.",
+                            "Search manually and save the selected lyrics for this track on your desktop.",
                             color = MutedLavender,
                             style = MaterialTheme.typography.bodyMedium,
                         )
@@ -7102,7 +7233,7 @@ private fun DesktopSettings(
                                 style = MaterialTheme.typography.titleMedium,
                             )
                             Text(
-                                "When enabled, VerseFlow refreshes your Mac library again after opening the app and after you change the watched folders.",
+                                "When enabled, VerseFlow refreshes your desktop library again after opening the app and after you change the watched folders.",
                                 color = MutedLavender,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -7117,7 +7248,7 @@ private fun DesktopSettings(
                         label = { Text("Musixmatch API key (optional)") },
                     )
                     Text(
-                        text = "VerseFlow uses LRCLIB and lyrics.ovh by default. Add your Musixmatch key here to enable it as a third lyrics source on Mac.",
+                        text = "VerseFlow uses LRCLIB and lyrics.ovh by default. Add your Musixmatch key here to enable it as a third lyrics source on desktop.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MutedLavender,
                     )
@@ -7175,7 +7306,7 @@ private fun DesktopSettings(
                 ) {
                     SectionLabel("Music folders")
                     Text(
-                        text = "VerseFlow can scan one or many folders on your Mac. Add folders here, remove them later, or drag folders in from Finder.",
+                        text = "VerseFlow can scan one or many folders on your computer. Add folders here, remove them later, or drag folders in from your file manager.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MutedLavender,
                     )
@@ -7204,7 +7335,7 @@ private fun DesktopSettings(
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text(
-                                    text = "No folders selected yet. Add one or more music folders to build the Mac library.",
+                                    text = "No folders selected yet. Add one or more music folders to build the desktop library.",
                                     color = MutedLavender,
                                     modifier = Modifier.padding(16.dp),
                                     style = MaterialTheme.typography.bodyMedium,
@@ -7266,7 +7397,7 @@ private fun DesktopFolderDropZone(
                     JLabel(
                         "<html><div style='text-align:center;color:#F5F7FF;font-family:sans-serif;'>" +
                             "Drag and drop one or more folders here<br/>" +
-                            "<span style='color:#B5BDD6;font-size:11px;'>VerseFlow will add them to your Mac library sources.</span>" +
+                            "<span style='color:#B5BDD6;font-size:11px;'>VerseFlow will add them to your desktop library sources.</span>" +
                             "</div></html>",
                         SwingConstants.CENTER,
                     ),
@@ -9063,7 +9194,7 @@ private fun buildDesktopSmartPlaylists(
                     id = "smart_recent_replay",
                     title = "Recent Replay",
                     subtitle = "Your latest desktop spins",
-                    description = "A smart mix built from the songs you played most recently on your Mac.",
+                    description = "A smart mix built from the songs you played most recently on desktop.",
                     supporting = "${recentTracks.size} songs • ${formatDuration(recentTracks.sumOf(DesktopTrack::durationMs))}",
                     tracks = recentTracks.take(12),
                     palette = recentTracks.first().palette,
@@ -9150,7 +9281,7 @@ private fun buildDesktopFavoritesPlaylist(
         } else {
             "Built automatically from your likes"
         },
-        description = "A permanent VerseFlow playlist that collects every song you like on the Mac app.",
+        description = "A permanent VerseFlow playlist that collects every song you like in the desktop app.",
         supporting = "${favoriteTracks.size} songs • ${formatDuration(favoriteTracks.sumOf(DesktopTrack::durationMs))}",
         tracks = favoriteTracks,
         palette = favoriteTracks.firstOrNull()?.palette ?: listOf(Color(0xFF1A0B16), VerseBlue, AuroraCyan),
@@ -9248,6 +9379,181 @@ private fun chooseDesktopArtistImageFile(): Path? {
     } else {
         null
     }
+}
+
+private fun buildDesktopPreviewData(): DesktopPreviewData {
+    val previewArtworkPath = "/Users/aliceakinyiolango/Documents/GitHub/verseflow/testalbumart.jpg"
+    val artworkBytes = loadDesktopImageBytes(previewArtworkPath)
+    val crimsonPalette = listOf(Color(0xFF120305), Color(0xFF6F1222), Color(0xFFE58A98))
+    val cobaltPalette = listOf(Color(0xFF07111F), Color(0xFF1B4B8F), Color(0xFF86D6FF))
+    val amberPalette = listOf(Color(0xFF130E05), Color(0xFF72531A), Color(0xFFF5C76B))
+    val now = System.currentTimeMillis()
+
+    val tracks = listOf(
+        DesktopTrack(
+            id = "preview-track-1",
+            path = "/preview/Crimson Skyline/01 Midnight Echo.mp3",
+            releaseDate = "2012",
+            title = "Midnight Echo",
+            artist = "Nova Rey",
+            artistCredits = listOf("Nova Rey"),
+            albumArtist = "Nova Rey",
+            album = "Crimson Skyline",
+            genre = "Synthwave",
+            durationMs = 226_000L,
+            mood = "Night drive",
+            palette = crimsonPalette,
+            lyrics = listOf(
+                DesktopLyricLine(0L, "City lights bloom in slow motion"),
+                DesktopLyricLine(14_000L, "Every window hums a neon prayer"),
+                DesktopLyricLine(29_000L, "We keep moving like the dark is open"),
+                DesktopLyricLine(43_000L, "Midnight echoes hanging in the air"),
+            ),
+            lyricsAttribution = "Preview data",
+            artworkBytes = artworkBytes,
+        ),
+        DesktopTrack(
+            id = "preview-track-2",
+            path = "/preview/Crimson Skyline/02 Glass Hearts.mp3",
+            releaseDate = "2012",
+            title = "Glass Hearts",
+            artist = "Nova Rey",
+            artistCredits = listOf("Nova Rey", "Kairo"),
+            albumArtist = "Nova Rey",
+            album = "Crimson Skyline",
+            genre = "Synthwave",
+            durationMs = 208_000L,
+            mood = "Late night",
+            palette = crimsonPalette,
+            plainLyrics = listOf(
+                "We kept our glass hearts hidden in the bassline.",
+                "Every chorus felt like headlights in the rain.",
+            ),
+            lyricsAttribution = "Preview data",
+            artworkBytes = artworkBytes,
+        ),
+        DesktopTrack(
+            id = "preview-track-3",
+            path = "/preview/Tidal Bloom/01 Tidal Bloom.mp3",
+            releaseDate = "2018",
+            title = "Tidal Bloom",
+            artist = "Ari Vale",
+            artistCredits = listOf("Ari Vale"),
+            albumArtist = "Ari Vale",
+            album = "Tidal Bloom",
+            genre = "Alt-Pop",
+            durationMs = 194_000L,
+            mood = "Lifted",
+            palette = cobaltPalette,
+            plainLyrics = listOf(
+                "We rise with the tide and the skyline opens wide.",
+            ),
+            lyricsAttribution = "Preview data",
+            artworkBytes = artworkBytes,
+        ),
+        DesktopTrack(
+            id = "preview-track-4",
+            path = "/preview/Tidal Bloom/02 Harborline.mp3",
+            releaseDate = "2018",
+            title = "Harborline",
+            artist = "Ari Vale",
+            artistCredits = listOf("Ari Vale", "Nova Rey"),
+            albumArtist = "Ari Vale",
+            album = "Tidal Bloom",
+            genre = "Alt-Pop",
+            durationMs = 238_000L,
+            mood = "Open road",
+            palette = cobaltPalette,
+            plainLyrics = listOf(
+                "Harbor lights and a fast lane heart.",
+                "Everything restless finds a start.",
+            ),
+            lyricsAttribution = "Preview data",
+            artworkBytes = artworkBytes,
+        ),
+        DesktopTrack(
+            id = "preview-track-5",
+            path = "/preview/Golden Static/01 Gold Static.mp3",
+            releaseDate = "2008",
+            title = "Gold Static",
+            artist = "Kairo",
+            artistCredits = listOf("Kairo"),
+            albumArtist = "Kairo",
+            album = "Golden Static",
+            genre = "Electronic",
+            durationMs = 214_000L,
+            mood = "After hours",
+            palette = amberPalette,
+            plainLyrics = listOf(
+                "Gold static in the rear-view mirror.",
+            ),
+            lyricsAttribution = "Preview data",
+            artworkBytes = artworkBytes,
+        ),
+    )
+
+    val albumKey = desktopAlbumKey("Nova Rey", "Crimson Skyline")
+    val artistName = "Nova Rey"
+    val playlistId = "preview-playlist-night-drive"
+
+    return DesktopPreviewData(
+        libraryState = DesktopLibraryUiState(
+            sourcePaths = listOf("/preview/library"),
+            tracks = tracks,
+            isScanning = false,
+            errorMessage = null,
+        ),
+        playHistoryEntries = listOf(
+            DesktopPlayHistoryEntry(tracks[0].path, tracks[0].title, tracks[0].artist, tracks[0].album, 162_000L, now - 2 * 60 * 60 * 1000L),
+            DesktopPlayHistoryEntry(tracks[1].path, tracks[1].title, tracks[1].artist, tracks[1].album, 145_000L, now - 26 * 60 * 60 * 1000L),
+            DesktopPlayHistoryEntry(tracks[2].path, tracks[2].title, tracks[2].artist, tracks[2].album, 176_000L, now - 3 * 24 * 60 * 60 * 1000L),
+            DesktopPlayHistoryEntry(tracks[4].path, tracks[4].title, tracks[4].artist, tracks[4].album, 204_000L, now - 8 * 24 * 60 * 60 * 1000L),
+            DesktopPlayHistoryEntry(tracks[3].path, tracks[3].title, tracks[3].artist, tracks[3].album, 121_000L, now - 12 * 24 * 60 * 60 * 1000L),
+        ),
+        favoriteTrackPaths = listOf(tracks[0].path, tracks[2].path, tracks[4].path),
+        userPlaylists = listOf(
+            DesktopUserPlaylist(
+                id = playlistId,
+                title = "Night Drive",
+                description = "A preview playlist for the desktop gallery.",
+                trackPaths = listOf(tracks[0].path, tracks[1].path, tracks[4].path),
+            ),
+        ),
+        artistProfileOverrides = mapOf(
+            "Nova Rey" to DesktopArtistProfileOverride(
+                photoPath = previewArtworkPath,
+                about = "Nova Rey is a preview-only synth-pop artist used to stage VerseFlow desktop screens with richer artwork, lyrics, and metadata.",
+            ),
+            "Ari Vale" to DesktopArtistProfileOverride(
+                photoPath = previewArtworkPath,
+                about = "Ari Vale represents the lighter alt-pop side of the preview gallery and helps exercise album, artist, and playlist states.",
+            ),
+        ),
+        albumProfileOverrides = mapOf(
+            albumKey to DesktopAlbumProfileOverride(
+                about = "Crimson Skyline is a preview album built for VerseFlow's desktop gallery. It exists to stage album art, track lists, and imported album metadata in one place.",
+                releaseDate = "October 12, 2012",
+                genre = "Synthwave",
+                sourcePageTitle = "Crimson Skyline",
+                totalTrackCount = 9,
+                trackTitles = listOf(
+                    "Midnight Echo",
+                    "Glass Hearts",
+                    "Afterglow District",
+                    "Static Bloom",
+                    "Crimson Skyline",
+                    "Lifeline",
+                    "Night Pulse",
+                    "Windowlight",
+                    "Exit Music",
+                ),
+            ),
+        ),
+        initialTrackId = tracks.first().id,
+        initialAlbumKey = albumKey,
+        initialArtistName = artistName,
+        initialPlaylistId = playlistId,
+    )
 }
 
 private fun loadDesktopImageBytes(path: String?): ByteArray? =
