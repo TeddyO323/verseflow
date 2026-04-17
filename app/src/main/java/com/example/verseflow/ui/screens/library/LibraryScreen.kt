@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Folder
@@ -88,6 +89,7 @@ import com.example.verseflow.ui.car.rememberIsCarLandscapeMode
 fun LibraryScreen(
     uiState: VerseFlowUiState,
     onSongClick: (Song) -> Unit,
+    onFolderSongClick: (Song, List<Song>) -> Unit,
     onAlbumClick: (Album) -> Unit,
     onArtistClick: (Artist) -> Unit,
     onPlaylistClick: (Playlist) -> Unit,
@@ -261,76 +263,6 @@ fun LibraryScreen(
                     },
                 ) {
                     Text("Cancel")
-                }
-            },
-        )
-    }
-
-    if (selectedFolder != null) {
-        AlertDialog(
-            onDismissRequest = { selectedFolderPath = null },
-            title = { Text(selectedFolder.name) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = selectedFolder.path,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 420.dp),
-                        verticalArrangement = Arrangement.spacedBy(1.dp),
-                    ) {
-                        items(selectedFolder.songs, key = { it.id }) { song ->
-                            SongListItem(
-                                song = song,
-                                artistName = uiState.artistsById[song.artistId]?.name.orEmpty(),
-                                supportingText = formatDuration(song.durationMs),
-                                onClick = {
-                                    selectedFolderPath = null
-                                    onSongClick(song)
-                                },
-                                shape = RectangleShape,
-                                surfaceAlpha = 0f,
-                                surfaceVariantAlpha = 0f,
-                                borderAlpha = 0f,
-                                shadowElevation = 0.dp,
-                                itemPadding = 6.dp,
-                                artworkSize = 52.dp,
-                                itemSpacing = 6.dp,
-                                artworkShape = RectangleShape,
-                                showArtworkOverlay = false,
-                                trailingContent = {
-                                    SongOverflowMenu(
-                                        song = song,
-                                        artistName = uiState.artistsById[song.artistId]?.name.orEmpty(),
-                                        albumTitle = uiState.albumsById[song.albumId]?.title.orEmpty(),
-                                        playlists = uiState.playlists,
-                                        isFavorite = song.id in uiState.playback.likedSongIds,
-                                        onRemoveFromVerseFlow = onRemoveFromVerseFlow,
-                                        onAddToPlaylist = onAddSongToPlaylist,
-                                        onAddToPlayQueue = onAddSongToPlayQueue,
-                                        onToggleFavorite = onToggleSongLike,
-                                        onOpenArtist = {
-                                            uiState.artistsById[song.artistId]?.let(onArtistClick)
-                                        },
-                                        onOpenAlbum = {
-                                            uiState.albumsById[song.albumId]?.let(onAlbumClick)
-                                        },
-                                        onDeleteFromStorage = onDeleteFromStorage,
-                                        onEditMusicInfo = onEditMusicInfo,
-                                    )
-                                },
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { selectedFolderPath = null }) {
-                    Text("Close")
                 }
             },
         )
@@ -731,6 +663,23 @@ fun LibraryScreen(
                                 title = "No folders available",
                                 body = "Folders appear when local songs expose path information from your device library.",
                                 modifier = Modifier.padding(horizontal = 20.dp),
+                            )
+                        } else if (selectedFolder != null) {
+                            FolderDetailContent(
+                                folder = selectedFolder,
+                                uiState = uiState,
+                                onBack = { selectedFolderPath = null },
+                                onSongClick = { song ->
+                                    onFolderSongClick(song, selectedFolder.songs)
+                                },
+                                onRemoveFromVerseFlow = onRemoveFromVerseFlow,
+                                onAddSongToPlaylist = onAddSongToPlaylist,
+                                onAddSongToPlayQueue = onAddSongToPlayQueue,
+                                onToggleSongLike = onToggleSongLike,
+                                onDeleteFromStorage = onDeleteFromStorage,
+                                onEditMusicInfo = onEditMusicInfo,
+                                onArtistClick = onArtistClick,
+                                onAlbumClick = onAlbumClick,
                             )
                         } else {
                             LazyColumn(
@@ -1284,6 +1233,113 @@ private fun LibraryFolderListItem(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.secondary,
             )
+        }
+    }
+}
+
+@Composable
+private fun FolderDetailContent(
+    folder: FolderSummary,
+    uiState: VerseFlowUiState,
+    onBack: () -> Unit,
+    onSongClick: (Song) -> Unit,
+    onRemoveFromVerseFlow: (String) -> Unit,
+    onAddSongToPlaylist: (String, String) -> Unit,
+    onAddSongToPlayQueue: (String) -> Unit,
+    onToggleSongLike: (String) -> Unit,
+    onDeleteFromStorage: (String) -> Unit,
+    onEditMusicInfo: (String) -> Unit,
+    onArtistClick: (Artist) -> Unit,
+    onAlbumClick: (Album) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GlowIconButton(
+                icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = "Back to folders",
+                onClick = onBack,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = folder.name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${folder.songCount} songs • ${folder.artistCount} artists",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Text(
+            text = folder.path,
+            modifier = Modifier.padding(horizontal = 20.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.secondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            items(folder.songs, key = { it.id }) { song ->
+                SongListItem(
+                    song = song,
+                    artistName = uiState.artistsById[song.artistId]?.name.orEmpty(),
+                    supportingText = formatDuration(song.durationMs),
+                    onClick = { onSongClick(song) },
+                    shape = RectangleShape,
+                    surfaceAlpha = 0f,
+                    surfaceVariantAlpha = 0f,
+                    borderAlpha = 0f,
+                    shadowElevation = 0.dp,
+                    itemPadding = 6.dp,
+                    artworkSize = 52.dp,
+                    itemSpacing = 6.dp,
+                    artworkShape = RectangleShape,
+                    showArtworkOverlay = false,
+                    trailingContent = {
+                        SongOverflowMenu(
+                            song = song,
+                            artistName = uiState.artistsById[song.artistId]?.name.orEmpty(),
+                            albumTitle = uiState.albumsById[song.albumId]?.title.orEmpty(),
+                            playlists = uiState.playlists,
+                            isFavorite = song.id in uiState.playback.likedSongIds,
+                            onRemoveFromVerseFlow = onRemoveFromVerseFlow,
+                            onAddToPlaylist = onAddSongToPlaylist,
+                            onAddToPlayQueue = onAddSongToPlayQueue,
+                            onToggleFavorite = onToggleSongLike,
+                            onOpenArtist = {
+                                uiState.artistsById[song.artistId]?.let(onArtistClick)
+                            },
+                            onOpenAlbum = {
+                                uiState.albumsById[song.albumId]?.let(onAlbumClick)
+                            },
+                            onDeleteFromStorage = onDeleteFromStorage,
+                            onEditMusicInfo = onEditMusicInfo,
+                        )
+                    },
+                )
+            }
         }
     }
 }

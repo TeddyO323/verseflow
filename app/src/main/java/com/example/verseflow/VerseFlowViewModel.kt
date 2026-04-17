@@ -319,8 +319,13 @@ class VerseFlowViewModel(
         val controller = player ?: return
         if (!usesLocalPlayback(playback) || playback.queue.isEmpty()) return
 
-        val index = controller.currentMediaItemIndex
-            .takeIf { it in playback.queue.indices }
+        val currentMediaId = controller.currentMediaItem?.mediaId
+        val currentUri = controller.currentMediaItem?.localConfiguration?.uri?.toString()
+        val index = when {
+            !currentMediaId.isNullOrBlank() -> playback.queue.indexOfFirst { it.id == currentMediaId }
+            !currentUri.isNullOrBlank() -> playback.queue.indexOfFirst { it.mediaUri == currentUri }
+            else -> -1
+        }.takeIf { it in playback.queue.indices }
             ?: playback.currentIndex
 
         updatePlayback(

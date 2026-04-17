@@ -170,6 +170,7 @@ private fun CarLibrarySongsScreenPreview() {
         LibraryScreen(
             uiState = CarPreviewData.librarySongs(),
             onSongClick = {},
+            onFolderSongClick = { _, _ -> },
             onAlbumClick = {},
             onArtistClick = {},
             onPlaylistClick = {},
@@ -197,6 +198,7 @@ private fun CarLibraryAlbumsScreenPreview() {
         LibraryScreen(
             uiState = CarPreviewData.libraryAlbums(),
             onSongClick = {},
+            onFolderSongClick = { _, _ -> },
             onAlbumClick = {},
             onArtistClick = {},
             onPlaylistClick = {},
@@ -224,6 +226,7 @@ private fun CarLibraryArtistsScreenPreview() {
         LibraryScreen(
             uiState = CarPreviewData.libraryArtists(),
             onSongClick = {},
+            onFolderSongClick = { _, _ -> },
             onAlbumClick = {},
             onArtistClick = {},
             onPlaylistClick = {},

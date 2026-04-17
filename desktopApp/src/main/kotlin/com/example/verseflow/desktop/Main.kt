@@ -14,7 +14,7 @@ fun main(args: Array<String>) = application {
             ?.equals("true", ignoreCase = true) == true
     Window(
         onCloseRequest = ::exitApplication,
-        title = if (previewMode) "VerseFlow Preview" else "VerseFlow",
+        title = if (previewMode) "VerseFlow Preview • $desktopPlatformName" else "VerseFlow • $desktopPlatformName",
         state = rememberWindowState(size = DpSize(1440.dp, 920.dp)),
     ) {
         VerseFlowDesktopApp(previewMode = previewMode)

@@ -428,22 +428,22 @@ private fun desktopImmersiveColorScheme(
 
     return if (isLight) {
         val primaryTone = lerp(
-            lerp(accent, Color.Black, if (spotlight) 0.25f else 0.42f),
+            lerp(accent, Color.Black, if (spotlight) 0.14f else 0.30f),
             primaryNeutral,
-            if (spotlight) 0.12f else 0.34f,
+            if (spotlight) 0.04f else 0.18f,
         )
         val secondaryTone = lerp(
-            lerp(support, Color.Black, if (spotlight) 0.20f else 0.34f),
+            lerp(support, Color.Black, if (spotlight) 0.12f else 0.24f),
             secondaryNeutral,
-            if (spotlight) 0.10f else 0.30f,
+            if (spotlight) 0.05f else 0.16f,
         )
         lightColorScheme(
             primary = primaryTone,
             secondary = secondaryTone,
-            tertiary = lerp(base, accent, if (spotlight) 0.40f else 0.26f),
-            background = lerp(base, Color.White, if (spotlight) 0.90f else 0.96f),
-            surface = lerp(base, Color.White, if (spotlight) 0.94f else 0.98f),
-            surfaceVariant = lerp(lerp(base, support, 0.35f), Color.White, if (spotlight) 0.82f else 0.91f),
+            tertiary = lerp(base, accent, if (spotlight) 0.56f else 0.38f),
+            background = lerp(base, Color.White, if (spotlight) 0.82f else 0.92f),
+            surface = lerp(base, Color.White, if (spotlight) 0.88f else 0.95f),
+            surfaceVariant = lerp(lerp(base, support, 0.48f), Color.White, if (spotlight) 0.70f else 0.86f),
             onPrimary = Color.White,
             onBackground = Color(0xFF101216),
             onSurface = Color(0xFF101216),
@@ -451,22 +451,22 @@ private fun desktopImmersiveColorScheme(
         )
     } else {
         val primaryTone = lerp(
-            lerp(accent, Color.White, if (spotlight) 0.18f else 0.34f),
+            lerp(accent, Color.White, if (spotlight) 0.08f else 0.20f),
             primaryNeutral,
-            if (spotlight) 0.08f else 0.26f,
+            if (spotlight) 0.03f else 0.14f,
         )
         val secondaryTone = lerp(
-            lerp(support, Color.White, if (spotlight) 0.12f else 0.28f),
+            lerp(support, Color.White, if (spotlight) 0.06f else 0.18f),
             secondaryNeutral,
-            if (spotlight) 0.08f else 0.24f,
+            if (spotlight) 0.03f else 0.12f,
         )
         darkColorScheme(
             primary = primaryTone,
             secondary = secondaryTone,
-            tertiary = lerp(base, accent, if (spotlight) 0.45f else 0.28f),
-            background = lerp(base, Color.Black, if (spotlight) 0.80f else 0.90f),
-            surface = lerp(base, Color.Black, if (spotlight) 0.72f else 0.84f),
-            surfaceVariant = lerp(lerp(base, support, 0.30f), Color.Black, if (spotlight) 0.60f else 0.76f),
+            tertiary = lerp(base, accent, if (spotlight) 0.62f else 0.38f),
+            background = lerp(base, Color.Black, if (spotlight) 0.58f else 0.80f),
+            surface = lerp(base, Color.Black, if (spotlight) 0.46f else 0.68f),
+            surfaceVariant = lerp(lerp(base, support, 0.42f), Color.Black, if (spotlight) 0.36f else 0.58f),
             onPrimary = Color.Black,
             onBackground = Color.White,
             onSurface = Color.White,
@@ -724,6 +724,30 @@ private data class DesktopNavigationSnapshot(
     val selectedAlbumKey: String?,
     val selectedArtistName: String?,
 )
+
+internal val desktopPlatformName: String by lazy {
+    when {
+        System.getProperty("os.name").startsWith("Mac", ignoreCase = true) -> "macOS"
+        System.getProperty("os.name").startsWith("Windows", ignoreCase = true) -> "Windows"
+        else -> "Desktop"
+    }
+}
+
+private val desktopPlatformPlayerLabel: String by lazy {
+    when (desktopPlatformName) {
+        "macOS" -> "macOS player"
+        "Windows" -> "Windows player"
+        else -> "Desktop player"
+    }
+}
+
+private val desktopPlatformShellLabel: String by lazy {
+    when (desktopPlatformName) {
+        "macOS" -> "macOS shell ready"
+        "Windows" -> "Windows shell ready"
+        else -> "Desktop shell ready"
+    }
+}
 
 private enum class DesktopPreviewScenario(val label: String) {
     Home("Home"),
@@ -3125,7 +3149,7 @@ private fun DesktopSidebar(
                             fontFamily = FontFamily.SansSerif,
                         )
                         Text(
-                            text = "Desktop player",
+                            text = desktopPlatformPlayerLabel,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontFamily = FontFamily.SansSerif,
@@ -3143,14 +3167,17 @@ private fun DesktopSidebar(
             Spacer(modifier = Modifier.height(if (collapsed) 0.dp else 2.dp))
             items.forEach { item ->
                 val itemColor by animateColorAsState(
-                    targetValue = if (item.selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    targetValue = if (item.selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     label = "sidebarItem",
+                )
+                val selectedBackground = MaterialTheme.colorScheme.primary.copy(
+                    alpha = if (desktopThemeNameCompatibility(desktopThemeForArtwork) == "Immersive Flow") 0.24f else 0.16f,
                 )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(22.dp))
-                        .background(if (item.selected) VerseBlue.copy(alpha = 0.16f) else Color.Transparent)
+                        .background(if (item.selected) selectedBackground else Color.Transparent)
                         .clickable(onClick = item.onClick)
                         .padding(horizontal = if (collapsed) 8.dp else 10.dp, vertical = 8.dp),
                     horizontalArrangement = if (collapsed) Arrangement.Center else Arrangement.spacedBy(10.dp),
@@ -3316,7 +3343,7 @@ private fun DesktopTopBar(
                             tint = MaterialTheme.colorScheme.secondary,
                         )
                         Text(
-                            text = "Desktop shell ready",
+                            text = desktopPlatformShellLabel,
                             color = MaterialTheme.colorScheme.secondary,
                             fontFamily = FontFamily.SansSerif,
                         )
@@ -5242,7 +5269,7 @@ private fun DesktopNowPlaying(
         lerp(
             track.palette.getOrElse(2) { track.palette.getOrElse(0) { VerseBlue } },
             track.palette.getOrElse(0) { VerseBlue },
-            0.28f,
+            0.12f,
         )
     } else {
         VerseBlue
@@ -6630,6 +6657,12 @@ private fun DesktopLyrics(
         track.lyrics.indexOfLast { line -> progressMs >= line.timestampMs }
             .let { index -> if (index < 0) 0 else index }
     }
+    val immersiveLyrics = desktopThemeNameCompatibility(desktopThemeForArtwork) == "Immersive Flow"
+    val lyricHeadlineColor = if (immersiveLyrics) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+    val lyricMetaColor = if (immersiveLyrics) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
+    val lyricAttributionColor = if (immersiveLyrics) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary
+    val activeLyricColor = if (immersiveLyrics) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+    val inactiveLyricColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     LaunchedEffect(track.id, activeLyricIndex) {
         if (track.lyrics.isNotEmpty()) {
@@ -6653,22 +6686,22 @@ private fun DesktopLyrics(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(track.title, style = MaterialTheme.typography.headlineLarge, color = FrostWhite)
-                    Text("${track.artist} • ${track.album}", style = MaterialTheme.typography.bodyLarge, color = MutedLavender)
+                    Text(track.title, style = MaterialTheme.typography.headlineLarge, color = lyricHeadlineColor)
+                    Text("${track.artist} • ${track.album}", style = MaterialTheme.typography.bodyLarge, color = lyricMetaColor)
                     track.lyricsAttribution?.let { attribution ->
-                        Text(attribution, style = MaterialTheme.typography.bodyMedium, color = VerseBlue)
+                        Text(attribution, style = MaterialTheme.typography.bodyMedium, color = lyricAttributionColor)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SecondaryChip(label = "Search lyrics", onClick = onOpenManualSearch)
                     Surface(
-                        color = VerseBlue.copy(alpha = 0.16f),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = if (immersiveLyrics) 0.24f else 0.16f),
                         shape = RoundedCornerShape(20.dp),
                         modifier = Modifier.clickable(onClick = onBackToPlayer),
                     ) {
                         Text(
                             text = "Back to player",
-                            color = VerseBlue,
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                         )
                     }
@@ -6691,7 +6724,7 @@ private fun DesktopLyrics(
                             val isActive = index == activeLyricIndex
                             Text(
                                 text = line.text,
-                                color = if (isActive) FrostWhite else MutedLavender,
+                                color = if (isActive) activeLyricColor else inactiveLyricColor,
                                 fontSize = if (isActive) 22.sp else 18.sp,
                                 fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
                                 textAlign = TextAlign.Center,
@@ -6715,7 +6748,7 @@ private fun DesktopLyrics(
                         items(track.plainLyrics) { line ->
                             Text(
                                 text = line,
-                                color = MutedLavender,
+                                color = inactiveLyricColor,
                                 fontSize = 18.sp,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier
@@ -8474,8 +8507,8 @@ private fun DesktopAppBackdrop(track: DesktopTrack?) {
             .background(
                 Brush.linearGradient(
                     colors = listOf(
-                        baseTone.copy(alpha = if (immersiveNowPlaying) 0.62f else 0.48f),
-                        midTone.copy(alpha = if (immersiveNowPlaying) 0.40f else 0.28f),
+                        baseTone.copy(alpha = if (immersiveNowPlaying) 0.78f else 0.48f),
+                        midTone.copy(alpha = if (immersiveNowPlaying) 0.56f else 0.28f),
                         InkBlack,
                     ),
                 ),
@@ -8488,12 +8521,12 @@ private fun DesktopAppBackdrop(track: DesktopTrack?) {
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer(
-                        scaleX = if (immersiveNowPlaying) 1.24f else 1.18f,
-                        scaleY = if (immersiveNowPlaying) 1.24f else 1.18f,
+                        scaleX = if (immersiveNowPlaying) 1.34f else 1.18f,
+                        scaleY = if (immersiveNowPlaying) 1.34f else 1.18f,
                     )
-                    .blur(if (immersiveNowPlaying) 56.dp else 48.dp),
+                    .blur(if (immersiveNowPlaying) 82.dp else 48.dp),
                 contentScale = ContentScale.Crop,
-                alpha = if (immersiveNowPlaying) 0.30f else 0.22f,
+                alpha = if (immersiveNowPlaying) 0.38f else 0.22f,
                 colorFilter = desktopArtworkColorFilter(),
             )
         }
@@ -8503,7 +8536,7 @@ private fun DesktopAppBackdrop(track: DesktopTrack?) {
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            highlightTone.copy(alpha = if (immersiveNowPlaying) 0.34f else 0.22f),
+                            highlightTone.copy(alpha = if (immersiveNowPlaying) 0.46f else 0.22f),
                             Color.Transparent,
                         ),
                     ),
@@ -8515,9 +8548,9 @@ private fun DesktopAppBackdrop(track: DesktopTrack?) {
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            highlightTone.copy(alpha = if (immersiveNowPlaying) 0.12f else 0.06f),
+                            highlightTone.copy(alpha = if (immersiveNowPlaying) 0.20f else 0.06f),
                             Color.Transparent,
-                            baseTone.copy(alpha = if (immersiveNowPlaying) 0.18f else 0.10f),
+                            baseTone.copy(alpha = if (immersiveNowPlaying) 0.28f else 0.10f),
                         ),
                     ),
                 ),
@@ -8543,13 +8576,41 @@ private fun AlbumArtHero(
     track: DesktopTrack,
     modifier: Modifier = Modifier,
 ) {
-    DesktopArtworkPanel(
-        palette = track.palette,
-        artworkBytes = track.artworkBytes,
-        label = track.album.take(1),
-        modifier = modifier,
-        contentScale = ContentScale.Fit,
-    )
+    val artwork = rememberArtworkBitmap(track.artworkBytes)
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(30.dp))
+            .background(Brush.linearGradient(track.palette)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (artwork != null) {
+            Image(
+                bitmap = artwork,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(scaleX = 1.18f, scaleY = 1.18f)
+                    .blur(44.dp),
+                contentScale = ContentScale.Crop,
+                alpha = 0.34f,
+                colorFilter = desktopArtworkColorFilter(),
+            )
+            Image(
+                bitmap = artwork,
+                contentDescription = track.album.take(1),
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit,
+                colorFilter = desktopArtworkColorFilter(),
+            )
+        } else {
+            Text(
+                text = track.album.take(1),
+                color = FrostWhite,
+                fontSize = 120.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
 }
 
 @Composable

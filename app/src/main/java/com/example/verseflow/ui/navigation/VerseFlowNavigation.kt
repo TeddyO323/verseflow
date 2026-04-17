@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Settings
 import com.example.verseflow.model.LibraryTab
+import com.example.verseflow.model.Song
 import com.example.verseflow.model.VerseFlowUiState
 import com.example.verseflow.ui.car.rememberIsCarLandscapeMode
 
@@ -150,6 +151,12 @@ fun VerseFlowNavHost(
                 uiState = uiState,
                 onSongClick = {
                     viewModel.playCurrentLibrarySong(it.id)
+                },
+                onFolderSongClick = { song, queue ->
+                    viewModel.playSong(
+                        songId = song.id,
+                        queueSongIds = queue.map(Song::id),
+                    )
                 },
                 onAlbumClick = {
                     openAlbumRoute(it.id)

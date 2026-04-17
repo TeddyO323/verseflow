@@ -114,6 +114,8 @@ class DesktopLyricsRepository(
                 durationMs = track.durationMs,
             )
         }
+        lrcResults.bestResult()?.payload?.let { return@withContext it }
+
         val musixmatchResults = searchMusixmatchCandidates(
             title = track.title,
             artistName = track.artist,
@@ -121,33 +123,33 @@ class DesktopLyricsRepository(
             durationMs = track.durationMs,
             trackIsrc = track.isrc,
         )
+        musixmatchResults
+            .sortedWith(
+                compareBy<DesktopLyricsSearchCandidate> { if (it.payload.syncedLyrics.isNotEmpty()) 0 else 1 }
+                    .thenBy { it.score }
+                    .thenByDescending { it.payload.syncedLyrics.size }
+                    .thenByDescending { it.payload.plainLyrics.size },
+            )
+            .firstOrNull()
+            ?.payload
+            ?.let { return@withContext it }
 
-        lrcResults.bestResult()?.payload
-            ?: musixmatchResults
-                .sortedWith(
-                    compareBy<DesktopLyricsSearchCandidate> { if (it.payload.syncedLyrics.isNotEmpty()) 0 else 1 }
-                        .thenBy { it.score }
-                        .thenByDescending { it.payload.syncedLyrics.size }
-                        .thenByDescending { it.payload.plainLyrics.size },
-                )
-                .firstOrNull()
-                ?.payload
-            ?: artistSearchInputs.asSequence().flatMap { artistInput ->
-                lyricsOvhFallbackRepository.searchCandidates(
-                    title = track.title,
-                    artistName = artistInput,
-                    albumTitle = track.album,
-                    durationMs = track.durationMs,
-                ).asSequence()
-            }.distinctBy { "${normalizeLookupValue(it.title)}|${normalizeLookupValue(it.artist)}|${it.typeLabel}|${it.source}" }
-                .sortedWith(
-                    compareBy<DesktopLyricsSearchCandidate> { if (it.payload.syncedLyrics.isNotEmpty()) 0 else 1 }
-                        .thenBy { it.score }
-                        .thenByDescending { it.payload.syncedLyrics.size }
-                        .thenByDescending { it.payload.plainLyrics.size },
-                )
-                .firstOrNull()
-                ?.payload
+        artistSearchInputs.asSequence().flatMap { artistInput ->
+            lyricsOvhFallbackRepository.searchCandidates(
+                title = track.title,
+                artistName = artistInput,
+                albumTitle = track.album,
+                durationMs = track.durationMs,
+            ).asSequence()
+        }.distinctBy { "${normalizeLookupValue(it.title)}|${normalizeLookupValue(it.artist)}|${it.typeLabel}|${it.source}" }
+            .sortedWith(
+                compareBy<DesktopLyricsSearchCandidate> { if (it.payload.syncedLyrics.isNotEmpty()) 0 else 1 }
+                    .thenBy { it.score }
+                    .thenByDescending { it.payload.syncedLyrics.size }
+                    .thenByDescending { it.payload.plainLyrics.size },
+            )
+            .firstOrNull()
+            ?.payload
     }
 
     suspend fun searchCandidates(

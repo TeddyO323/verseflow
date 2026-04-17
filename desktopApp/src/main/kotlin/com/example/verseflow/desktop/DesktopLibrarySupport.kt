@@ -402,16 +402,19 @@ private fun paletteFromArtworkBytes(artworkBytes: ByteArray?): List<Color>? {
 
     val average = sampledColors.averageColor()
     val darkest = sampledColors.minByOrNull(::colorLuminance) ?: average
-    val accent = sampledColors.maxByOrNull { colorSaturation(it) * 1.4f + colorLuminance(it) } ?: average
+    val neutralSamples = sampledColors.filter { colorSaturation(it) < 0.22f }
+    val neutralAverage = neutralSamples.ifEmpty { sampledColors }.averageColor()
+    val darkestNeutral = neutralSamples.minByOrNull(::colorLuminance) ?: darkest
+    val accent = sampledColors.maxByOrNull { colorSaturation(it) * 1.8f + colorLuminance(it) * 0.35f } ?: average
 
-    val base = mixColor(darkest, average, 0.36f)
-    val mid = mixColor(average, Color(0xFF121625), 0.18f)
-    val highlight = mixColor(accent, average, 0.22f)
+    val base = mixColor(darkestNeutral, neutralAverage, 0.24f)
+    val mid = mixColor(neutralAverage, darkestNeutral, 0.16f)
+    val highlight = mixColor(accent, neutralAverage, 0.12f)
 
     return listOf(
-        base.darken(0.28f),
-        mid,
-        highlight.lighten(0.12f),
+        base.darken(0.34f),
+        mid.darken(0.08f),
+        highlight.lighten(0.18f),
     )
 }
 
