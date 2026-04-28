@@ -15,6 +15,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -607,8 +608,14 @@ private data class DesktopPlayHistoryDaySection(
 
 private data class DesktopHistoryHeatmapCell(
     val date: LocalDate,
+    val hour: Int,
     val intensity: Int,
-    val playCount: Int,
+    val listenedMinutes: Long,
+)
+
+private data class DesktopHistoryHeatmapWeek(
+    val weekStart: LocalDate,
+    val rows: List<List<DesktopHistoryHeatmapCell>>,
 )
 
 private data class DesktopHistoryAlbumRecap(
@@ -2380,19 +2387,21 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
 
     LaunchedEffect(currentTrack?.id) {
         val activeTrack = currentTrack ?: return@LaunchedEffect
-        if (activeTrack.lyrics.isNotEmpty() || activeTrack.plainLyrics.isNotEmpty()) {
+        if (activeTrack.lyrics.isNotEmpty()) {
             lyricsStatuses = lyricsStatuses + (activeTrack.id to DesktopLyricsLoadState.Ready)
             return@LaunchedEffect
         }
-        if (lyricsStatuses[activeTrack.id] == DesktopLyricsLoadState.Loading ||
-            lyricsStatuses[activeTrack.id] == DesktopLyricsLoadState.Unavailable
-        ) {
+        if (lyricsStatuses[activeTrack.id] == DesktopLyricsLoadState.Loading) {
             return@LaunchedEffect
         }
+        var shouldRefreshSyncedLyrics = activeTrack.plainLyrics.isNotEmpty()
         lyricsCacheStore.load(activeTrack.path)?.let { cachedLyrics ->
             updateTrackLyrics(activeTrack.id, cachedLyrics)
-            lyricsStatuses = lyricsStatuses + (activeTrack.id to DesktopLyricsLoadState.Ready)
-            return@LaunchedEffect
+            if (cachedLyrics.syncedLyrics.isNotEmpty()) {
+                lyricsStatuses = lyricsStatuses + (activeTrack.id to DesktopLyricsLoadState.Ready)
+                return@LaunchedEffect
+            }
+            shouldRefreshSyncedLyrics = true
         }
 
         lyricsStatuses = lyricsStatuses + (activeTrack.id to DesktopLyricsLoadState.Loading)
@@ -2402,7 +2411,9 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
             lyricsCacheStore.save(activeTrack.path, payload)
             lyricsStatuses = lyricsStatuses + (activeTrack.id to DesktopLyricsLoadState.Ready)
         } else {
-            lyricsStatuses = lyricsStatuses + (activeTrack.id to DesktopLyricsLoadState.Unavailable)
+            lyricsStatuses = lyricsStatuses + (
+                activeTrack.id to if (shouldRefreshSyncedLyrics) DesktopLyricsLoadState.Ready else DesktopLyricsLoadState.Unavailable
+            )
         }
     }
 
@@ -2471,7 +2482,7 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
                         .fillMaxSize()
                         .background(InkBlack),
                 )
-                if (section == DesktopSection.NowPlaying) {
+                if (section == DesktopSection.NowPlaying || section == DesktopSection.Lyrics) {
                     DesktopAppBackdrop(track = currentTrack)
                 }
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -4987,10 +4998,27 @@ private fun DesktopHistoryTimePatternCard(
 
 @Composable
 private fun DesktopHistoryHeatmap(
-    heatmap: List<List<DesktopHistoryHeatmapCell>>,
+    heatmap: List<DesktopHistoryHeatmapWeek>,
 ) {
+    if (heatmap.isEmpty()) return
     val weekdayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-    val totalPlays = heatmap.flatten().sumOf(DesktopHistoryHeatmapCell::playCount)
+    val hourLabels = listOf(
+        0 to "12a",
+        3 to "3a",
+        6 to "6a",
+        9 to "9a",
+        12 to "12p",
+        15 to "3p",
+        18 to "6p",
+        21 to "9p",
+    )
+    var selectedWeekIndex by remember(heatmap) { mutableStateOf(heatmap.lastIndex.coerceAtLeast(0)) }
+    var weekMenuExpanded by remember { mutableStateOf(false) }
+    val selectedWeek = heatmap[selectedWeekIndex.coerceIn(0, heatmap.lastIndex)]
+    val totalMinutes = heatmap
+        .flatMap(DesktopHistoryHeatmapWeek::rows)
+        .flatten()
+        .sumOf(DesktopHistoryHeatmapCell::listenedMinutes)
 
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -5003,7 +5031,7 @@ private fun DesktopHistoryHeatmap(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "Each square is one day. Brighter squares mean more plays on that day over the last ${heatmap.flatten().size} days.",
+                text = "Each weekly block runs Monday to Sunday. Columns are hourly listening buckets from 12am to 11:59pm, and darker cells mean more listening minutes in that hour.",
                 color = MutedLavender,
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = FontFamily.SansSerif,
@@ -5013,23 +5041,72 @@ private fun DesktopHistoryHeatmap(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "$totalPlays plays logged",
-                    color = FrostWhite,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontFamily = FontFamily.SansSerif,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "${formatDurationLong(totalMinutes * 60_000L)} logged",
+                        color = FrostWhite,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontFamily = FontFamily.SansSerif,
+                    )
+                    Box {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surface,
+                            shape = RectangleShape,
+                            modifier = Modifier
+                                .clickable { weekMenuExpanded = true },
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "Week of ${selectedWeek.weekStart.format(DateTimeFormatter.ofPattern("d MMM yyyy"))}",
+                                    color = FrostWhite,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontFamily = FontFamily.SansSerif,
+                                )
+                                Text(
+                                    text = "v",
+                                    color = MutedLavender,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontFamily = FontFamily.SansSerif,
+                                )
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = weekMenuExpanded,
+                            onDismissRequest = { weekMenuExpanded = false },
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surface),
+                        ) {
+                            heatmap.forEachIndexed { index, week ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Week of ${week.weekStart.format(DateTimeFormatter.ofPattern("d MMM yyyy"))}",
+                                            fontFamily = FontFamily.SansSerif,
+                                        )
+                                    },
+                                    onClick = {
+                                        selectedWeekIndex = index
+                                        weekMenuExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Less",
-                        color = MutedLavender,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.SansSerif,
-                    )
-                    listOf(0, 1, 2, 3, 4).forEach { intensity ->
+                    ) {
+                        Text(
+                            text = "Less",
+                            color = MutedLavender,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.SansSerif,
+                        )
+                    listOf(1, 2, 3, 4, 5, 6).forEach { intensity ->
                         Surface(
                             color = historyHeatColor(intensity),
                             shape = RectangleShape,
@@ -5044,17 +5121,42 @@ private fun DesktopHistoryHeatmap(
                     )
                 }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.width(34.dp),
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    weekdayLabels.forEach { label ->
+                    Spacer(modifier = Modifier.width(40.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        repeat(24) { hour ->
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                hourLabels.firstOrNull { it.first == hour }?.let { (_, label) ->
+                                    Text(
+                                        text = label,
+                                        color = MutedLavender,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontFamily = FontFamily.SansSerif,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                weekdayLabels.forEachIndexed { dayIndex, label ->
+                    val rowColors = selectedWeek.rows[dayIndex].map { historyHeatColor(it.intensity) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Box(
-                            modifier = Modifier.height(18.dp),
+                            modifier = Modifier.width(40.dp),
                             contentAlignment = Alignment.CenterStart,
                         ) {
                             Text(
@@ -5064,25 +5166,18 @@ private fun DesktopHistoryHeatmap(
                                 fontFamily = FontFamily.SansSerif,
                             )
                         }
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    heatmap.forEach { week ->
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(22.dp),
                         ) {
-                            week.forEach { cell ->
-                                Surface(
-                                    color = historyHeatColor(cell.intensity),
-                                    shape = RectangleShape,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(18.dp),
-                                ) {}
+                            val segmentWidth = size.width / 24f
+                            rowColors.forEachIndexed { index, color ->
+                                drawRect(
+                                    color = color,
+                                    topLeft = androidx.compose.ui.geometry.Offset(x = segmentWidth * index, y = 0f),
+                                    size = androidx.compose.ui.geometry.Size(width = segmentWidth, height = size.height),
+                                )
                             }
                         }
                     }
@@ -5097,17 +5192,21 @@ private fun historyHeatColor(intensity: Int): Color =
     if (isDesktopMonochromeTheme(desktopThemeForArtwork)) {
         when (intensity) {
             0 -> MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
-            1 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f)
-            2 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
-            3 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.52f)
-            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
+            1 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+            2 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.20f)
+            3 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.34f)
+            4 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.48f)
+            5 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f)
+            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
         }
     } else {
         when (intensity) {
             0 -> MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-            1 -> VerseBlue.copy(alpha = 0.28f)
-            2 -> VerseBlue.copy(alpha = 0.46f)
-            3 -> AuroraCyan.copy(alpha = 0.56f)
+            1 -> VerseBlue.copy(alpha = 0.12f)
+            2 -> VerseBlue.copy(alpha = 0.22f)
+            3 -> VerseBlue.copy(alpha = 0.34f)
+            4 -> AuroraCyan.copy(alpha = 0.48f)
+            5 -> AuroraCyan.copy(alpha = 0.62f)
             else -> AuroraCyan.copy(alpha = 0.78f)
         }
     }
@@ -5290,10 +5389,19 @@ private fun DesktopNowPlaying(
         modifier = Modifier.fillMaxSize(),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        AlbumArtHero(
-            track = track,
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.Center,
+        ) {
+            AlbumArtHero(
+                track = track,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f),
+            )
+        }
         Column(
             modifier = Modifier
                 .weight(0.95f)
@@ -6671,25 +6779,41 @@ private fun DesktopLyrics(
         }
     }
 
-    Card(
-        modifier = Modifier.fillMaxSize(),
-        colors = CardDefaults.cardColors(containerColor = SurfaceGlass),
-        shape = RoundedCornerShape(30.dp),
+    Column(
+        modifier = Modifier.fillMaxSize().padding(28.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(28.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(track.title, style = MaterialTheme.typography.headlineLarge, color = lyricHeadlineColor)
-                    Text("${track.artist} • ${track.album}", style = MaterialTheme.typography.bodyLarge, color = lyricMetaColor)
+                Column(
+                    modifier = Modifier.weight(1f).padding(end = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = track.title,
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = lyricHeadlineColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "${track.artist} • ${track.album}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = lyricMetaColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     track.lyricsAttribution?.let { attribution ->
-                        Text(attribution, style = MaterialTheme.typography.bodyMedium, color = lyricAttributionColor)
+                        Text(
+                            text = attribution,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = lyricAttributionColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -6771,7 +6895,6 @@ private fun DesktopLyrics(
                     )
                 }
             }
-        }
     }
 }
 
@@ -8948,35 +9071,62 @@ private fun List<DesktopPlayHistoryEntry>.toTimeOfDayPatterns(): List<DesktopHis
     }.sortedByDescending(DesktopHistoryTimePattern::listenedMs)
 }
 
-private fun List<DesktopPlayHistoryEntry>.toHistoryHeatmap(days: Int = 84): List<List<DesktopHistoryHeatmapCell>> {
+private fun List<DesktopPlayHistoryEntry>.toHistoryHeatmap(days: Int = 84): List<DesktopHistoryHeatmapWeek> {
     if (isEmpty()) return emptyList()
+    val zone = ZoneId.systemDefault()
     val endDate = LocalDate.now()
     val startDate = endDate.minusDays((days - 1).toLong())
-    val playsByDate = groupBy {
-        Instant.ofEpochMilli(it.playedAtMs)
-            .atZone(ZoneId.systemDefault())
-            .toLocalDate()
-    }.mapValues { (_, entries) -> entries.size }
-    val maxPlays = playsByDate.values.maxOrNull()?.coerceAtLeast(1) ?: 1
     val firstGridDate = startDate.minusDays(startDate.dayOfWeek.ordinal.toLong())
-    val totalDays = java.time.temporal.ChronoUnit.DAYS.between(firstGridDate, endDate).toInt() + 1
+    val lastGridDate = endDate.plusDays((6 - endDate.dayOfWeek.ordinal).toLong())
+    val totalDays = java.time.temporal.ChronoUnit.DAYS.between(firstGridDate, lastGridDate).toInt() + 1
+    val listenedMinutesByHour = mutableMapOf<Pair<LocalDate, Int>, Long>()
+
+    forEach { entry ->
+        val listenedMs = entry.listenedMs.coerceAtLeast(0L)
+        if (listenedMs <= 0L) return@forEach
+        var cursor = Instant.ofEpochMilli(entry.playedAtMs).atZone(zone)
+        val end = cursor.plusNanos(listenedMs * 1_000_000L)
+        while (cursor < end) {
+            val nextHour = cursor.truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1)
+            val chunkEnd = if (nextHour < end) nextHour else end
+            val chunkMinutes = java.time.Duration.between(cursor, chunkEnd).toMinutes().coerceAtLeast(1L)
+            val date = cursor.toLocalDate()
+            if (date in firstGridDate..endDate) {
+                val key = date to cursor.hour
+                listenedMinutesByHour[key] = (listenedMinutesByHour[key] ?: 0L) + chunkMinutes
+            }
+            cursor = chunkEnd
+        }
+    }
+
+    fun intensityForMinutes(minutes: Long): Int = when {
+        minutes <= 0L -> 0
+        minutes <= 10L -> 1
+        minutes <= 20L -> 2
+        minutes <= 30L -> 3
+        minutes <= 40L -> 4
+        minutes <= 50L -> 5
+        else -> 6
+    }
+
     return (0 until totalDays)
         .map { offset -> firstGridDate.plusDays(offset.toLong()) }
         .chunked(7)
         .map { week ->
-            week.map { date ->
-                val playCount = playsByDate[date] ?: 0
-                val intensity = when {
-                    playCount <= 0 -> 0
-                    playCount >= maxPlays -> 4
-                    else -> ((playCount.toFloat() / maxPlays.toFloat()) * 4f).toInt().coerceIn(1, 3)
-                }
-                DesktopHistoryHeatmapCell(
-                    date = date,
-                    intensity = intensity,
-                    playCount = playCount,
-                )
-            }
+            DesktopHistoryHeatmapWeek(
+                weekStart = week.first(),
+                rows = week.map { date ->
+                    (0 until 24).map { hour ->
+                        val listenedMinutes = listenedMinutesByHour[date to hour] ?: 0L
+                        DesktopHistoryHeatmapCell(
+                            date = date,
+                            hour = hour,
+                            intensity = intensityForMinutes(listenedMinutes),
+                            listenedMinutes = listenedMinutes,
+                        )
+                    }
+                },
+            )
         }
 }
 

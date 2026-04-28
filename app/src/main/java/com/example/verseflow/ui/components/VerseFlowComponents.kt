@@ -218,14 +218,17 @@ fun ArtworkReactiveBackdrop(
     }
     val reactivePalette = backdrop?.palette ?: palette
     val isMonochromeArtwork = backdrop?.isMonochrome == true
-    val backgroundScale = if (isCarLandscapeMode) 5.2f else 1.72f
+    val backgroundScale = if (isCarLandscapeMode) 1.34f else 1.72f
     val backgroundAlpha = if (isCarLandscapeMode) {
-        if (isMonochromeArtwork) 0.26f else 0.20f
+        if (isMonochromeArtwork) 0.34f else 0.38f
     } else {
         if (isMonochromeArtwork) 0.78f else 0.72f
     }
-    val backdropBlur = if (isCarLandscapeMode) 420.dp else 168.dp
+    val backdropBlur = if (isCarLandscapeMode) 82.dp else 168.dp
     val foregroundAlpha = if (isCarLandscapeMode) 0f else if (isMonochromeArtwork) 0.02f else 0.03f
+    val baseTone = reactivePalette.background
+    val midTone = androidx.compose.ui.graphics.lerp(reactivePalette.background, reactivePalette.secondary, if (isCarLandscapeMode) 0.42f else 0.22f)
+    val highlightTone = if (isMonochromeArtwork) reactivePalette.tertiary else reactivePalette.primary
 
     Box(modifier = modifier.background(Color.Black)) {
         if (artwork != null) {
@@ -242,27 +245,15 @@ fun ArtworkReactiveBackdrop(
                     )
                     .blur(backdropBlur),
             )
-            Image(
-                bitmap = artwork!!,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(alpha = foregroundAlpha),
-            )
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        Brush.verticalGradient(
+                        Brush.linearGradient(
                             listOf(
-                                Color.Black.copy(alpha = if (isCarLandscapeMode) 0.56f else 0.28f),
-                                reactivePalette.background.copy(alpha = if (isCarLandscapeMode) {
-                                    if (isMonochromeArtwork) 0.03f else 0.07f
-                                } else {
-                                    if (isMonochromeArtwork) 0.12f else 0.22f
-                                }),
-                                Color.Black.copy(alpha = if (isCarLandscapeMode) 0.88f else 0.72f),
+                                baseTone.copy(alpha = if (isCarLandscapeMode) 0.78f else 0.28f),
+                                midTone.copy(alpha = if (isCarLandscapeMode) 0.56f else 0.22f),
+                                Color.Black,
                             ),
                         ),
                     ),
@@ -274,14 +265,48 @@ fun ArtworkReactiveBackdrop(
                         .background(
                             Brush.radialGradient(
                                 colors = listOf(
-                                    reactivePalette.primary.copy(alpha = if (isMonochromeArtwork) 0.04f else 0.08f),
+                                    highlightTone.copy(alpha = if (isMonochromeArtwork) 0.30f else 0.46f),
                                     Color.Transparent,
                                 ),
-                                radius = 900f,
+                                radius = 1240f,
+                            ),
+                        ),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    highlightTone.copy(alpha = if (isMonochromeArtwork) 0.12f else 0.20f),
+                                    Color.Transparent,
+                                    baseTone.copy(alpha = 0.28f),
+                                ),
+                            ),
+                        ),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.Black.copy(alpha = 0.20f),
+                                    Color.Black.copy(alpha = 0.42f),
+                                    Color.Black.copy(alpha = 0.82f),
+                                ),
                             ),
                         ),
                 )
             } else {
+                Image(
+                    bitmap = artwork!!,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer(alpha = foregroundAlpha),
+                )
                 AuroraBackdrop(
                     palette = reactivePalette,
                     backgroundAlpha = if (isMonochromeArtwork) 0.08f else 0.18f,

@@ -213,14 +213,31 @@ class DesktopLyricsRepository(
         albumTitle: String?,
         durationMs: Long,
     ): List<ScoredDesktopLyricsMatch> {
-        val titleCandidates = titleCandidateStrings(title)
-        val artistCandidates = artistCandidateStrings(artistName)
-        val albumCandidates = albumTitle?.let(::albumCandidateStrings).orEmpty()
+        val titleCandidates = (listOf(preferredDesktopTitleQuery(title)) + titleCandidateStrings(title))
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinct()
+            .take(3)
+        val artistCandidates = (listOf(preferredDesktopArtistQuery(artistName)) + artistCandidateStrings(artistName))
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinct()
+            .take(3)
+        val albumCandidates = albumTitle?.let {
+            (listOf(preferredDesktopTitleQuery(it)) + albumCandidateStrings(it))
+                .map(String::trim)
+                .filter(String::isNotBlank)
+                .distinct()
+                .take(2)
+        }.orEmpty()
 
         val exactMatches = buildList {
             titleCandidates.forEach { titleCandidate ->
                 artistCandidates.forEach { artistCandidate ->
-                    val albumOptions = if (albumCandidates.isEmpty()) listOf<String?>(null) else albumCandidates.map { it as String? }
+                    val albumOptions = buildList<String?> {
+                        add(null)
+                        addAll(albumCandidates.map { it as String? })
+                    }.distinct()
                     albumOptions.forEach { albumCandidate ->
                         requestObject(
                             path = "get",
@@ -246,6 +263,7 @@ class DesktopLyricsRepository(
         }
 
         val searchQueries = buildList {
+            add("${preferredDesktopTitleQuery(title)} ${preferredDesktopArtistQuery(artistName)}")
             add(listOf(title, artistName, albumTitle).filterNotNull().joinToString(" "))
             titleCandidates.forEach { titleCandidate ->
                 artistCandidates.forEach { artistCandidate ->
@@ -253,7 +271,7 @@ class DesktopLyricsRepository(
                 }
             }
             addAll(titleCandidates)
-        }.map(String::trim).filter(String::isNotBlank).distinct()
+        }.map(String::trim).filter(String::isNotBlank).distinct().take(4)
 
         val searchMatches = searchQueries.mapNotNull { query ->
             bestMatch(
@@ -352,11 +370,12 @@ class DesktopLyricsRepository(
             null
         }
 
-        if (artistOverlap < 0.72) return null
+        val minArtistOverlap = if (payload.syncedLyrics.isNotEmpty()) 0.58 else 0.72
+        if (artistOverlap < minArtistOverlap) return null
         if (titleOverlap < 0.68 && !shareCoreText(titleMatch.expected, titleMatch.actual)) return null
         if (requestedAlbum != null && metadata.album != null && albumOverlap < 0.34 && titleOverlap < 0.92) return null
         if (durationDeltaSeconds != null) {
-            val maxDelta = if (payload.syncedLyrics.isNotEmpty()) 18.0 else 12.0
+            val maxDelta = if (payload.syncedLyrics.isNotEmpty()) 35.0 else 12.0
             if (durationDeltaSeconds > maxDelta) return null
         }
 
@@ -368,7 +387,7 @@ class DesktopLyricsRepository(
         }
         durationDeltaSeconds?.let { score += it * if (payload.syncedLyrics.isNotEmpty()) 0.12 else 0.18 }
         if (payload.syncedLyrics.isEmpty()) score += 0.9
-        val maxAcceptedScore = if (payload.syncedLyrics.isNotEmpty()) 6.8 else 5.3
+        val maxAcceptedScore = if (payload.syncedLyrics.isNotEmpty()) 8.6 else 5.3
         if (score > maxAcceptedScore) return null
 
         return ScoredDesktopLyricsMatch(
@@ -425,8 +444,8 @@ class DesktopLyricsRepository(
         val connection = (URL(url).openConnection() as? HttpURLConnection) ?: return null
         return try {
             connection.requestMethod = "GET"
-            connection.connectTimeout = 6_000
-            connection.readTimeout = 6_000
+            connection.connectTimeout = 2_500
+            connection.readTimeout = 3_000
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("User-Agent", "VerseFlowDesktop/1.0")
 
@@ -475,7 +494,7 @@ class DesktopLyricsRepository(
                     }
                 }
             }
-        }.distinct().take(12)
+        }.distinct().take(4)
 
         return queryInputs
             .mapNotNull { query ->
@@ -614,8 +633,8 @@ class DesktopLyricsRepository(
         val connection = (URL(url).openConnection() as? HttpURLConnection) ?: return null
         return try {
             connection.requestMethod = "GET"
-            connection.connectTimeout = 6_000
-            connection.readTimeout = 6_000
+            connection.connectTimeout = 2_500
+            connection.readTimeout = 3_000
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("User-Agent", "VerseFlowDesktop/1.0")
             val stream = when (connection.responseCode) {
@@ -635,16 +654,7 @@ class DesktopLyricsRepository(
     }
 
     private fun fireTrackingPixel(url: String?) {
-        val targetUrl = url?.trim().orEmpty()
-        if (targetUrl.isBlank()) return
-        runCatching {
-            val connection = (URL(targetUrl).openConnection() as? HttpURLConnection) ?: return
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 3_000
-            connection.readTimeout = 3_000
-            connection.inputStream.use { input -> input.readBytes() }
-            connection.disconnect()
-        }
+        // Avoid blocking desktop lyrics lookups on Musixmatch telemetry calls.
     }
 }
 
@@ -661,6 +671,8 @@ private fun buildDesktopLyricsArtistInputs(
     artistCredits: List<String> = emptyList(),
 ): List<String> =
     buildList {
+        add(preferredDesktopArtistQuery(primaryArtist))
+        artistCredits.firstOrNull()?.let { add(preferredDesktopArtistQuery(it)) }
         add(primaryArtist)
         addAll(artistCredits)
         addAll(buildDesktopArtistCredits(primaryArtist, title))
@@ -682,7 +694,7 @@ private class DesktopLyricsOvhFallbackRepository {
         val artistCandidates = artistCandidateStrings(artistName)
         val directCandidates = mutableListOf<DesktopLyricsSearchCandidate>()
 
-        directPairs(titleCandidates, artistCandidates).forEach { (artistCandidate, titleCandidate) ->
+        directPairs(titleCandidates, artistCandidates).take(4).forEach { (artistCandidate, titleCandidate) ->
             requestLyrics(artistCandidate, titleCandidate)?.let { lyrics ->
                 val plainLyrics = parseDesktopPlainLyrics(lyrics, stripTimestamps = false)
                 if (plainLyrics.isNotEmpty()) {
@@ -710,7 +722,7 @@ private class DesktopLyricsOvhFallbackRepository {
                     add("$artistCandidate $titleCandidate")
                 }
             }
-        }.map(String::trim).filter(String::isNotBlank).distinct()
+        }.map(String::trim).filter(String::isNotBlank).distinct().take(4)
 
         val suggestions = suggestionQueries
             .mapNotNull { query ->
@@ -724,7 +736,7 @@ private class DesktopLyricsOvhFallbackRepository {
             }
             .sortedBy(DesktopSuggestionMatch::score)
             .distinctBy { "${normalizeLookupValue(it.title)}|${normalizeLookupValue(it.artistName)}" }
-            .take(6)
+            .take(3)
 
         val suggestionCandidates = suggestions.mapNotNull { suggestion ->
             requestLyrics(suggestion.artistName, suggestion.title)?.let { lyrics ->
@@ -843,8 +855,8 @@ private class DesktopLyricsOvhFallbackRepository {
         val connection = (URL(url).openConnection() as? HttpURLConnection) ?: return null
         return try {
             connection.requestMethod = "GET"
-            connection.connectTimeout = 6_000
-            connection.readTimeout = 6_000
+            connection.connectTimeout = 2_500
+            connection.readTimeout = 3_000
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("User-Agent", "VerseFlowDesktop/1.0")
 
@@ -1012,6 +1024,21 @@ private fun baseCandidateStrings(value: String): List<String> {
     return listOf(cleaned, withoutParens, withoutFeatures)
         .filter(String::isNotBlank)
         .distinct()
+}
+
+private fun preferredDesktopTitleQuery(value: String): String =
+    baseCandidateStrings(value).lastOrNull() ?: value.trim()
+
+private fun preferredDesktopArtistQuery(value: String): String {
+    val simplified = baseCandidateStrings(value).lastOrNull() ?: value.trim()
+    val primary = simplified
+        .replace(Regex("""(?i)\b(feat|ft|featuring|with|vs|x)\b"""), "|")
+        .split("/")
+        .flatMap { it.split("|") }
+        .map(String::trim)
+        .firstOrNull(String::isNotBlank)
+
+    return primary ?: simplified
 }
 
 private fun collaborationSegments(value: String): List<String> {
