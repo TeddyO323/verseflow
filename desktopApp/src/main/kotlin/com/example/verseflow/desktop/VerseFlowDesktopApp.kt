@@ -2396,10 +2396,14 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
         }
         var shouldRefreshSyncedLyrics = activeTrack.plainLyrics.isNotEmpty()
         lyricsCacheStore.load(activeTrack.path)?.let { cachedLyrics ->
+            val isLegacyPlainFallback = cachedLyrics.syncedLyrics.isEmpty() &&
+                cachedLyrics.attribution.contains("lyrics.ovh", ignoreCase = true)
+            if (!isLegacyPlainFallback) {
             updateTrackLyrics(activeTrack.id, cachedLyrics)
             if (cachedLyrics.syncedLyrics.isNotEmpty()) {
                 lyricsStatuses = lyricsStatuses + (activeTrack.id to DesktopLyricsLoadState.Ready)
                 return@LaunchedEffect
+            }
             }
             shouldRefreshSyncedLyrics = true
         }
@@ -7404,7 +7408,7 @@ private fun DesktopSettings(
                         label = { Text("Musixmatch API key (optional)") },
                     )
                     Text(
-                        text = "VerseFlow uses LRCLIB and lyrics.ovh by default. Add your Musixmatch key here to enable it as a third lyrics source on desktop.",
+                        text = "VerseFlow uses LRCLIB by default. Add your Musixmatch key here to enable it as an optional fallback source on desktop.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MutedLavender,
                     )

@@ -102,10 +102,8 @@ class DesktopLyricsRepository(
             .ifBlank { System.getenv("VERSEFLOW_MUSIXMATCH_API_KEY")?.trim().orEmpty() }
     },
 ) {
-    private val lyricsOvhFallbackRepository = DesktopLyricsOvhFallbackRepository()
-
     suspend fun lookup(track: DesktopTrack): DesktopLyricsPayload? = withContext(Dispatchers.IO) {
-        val artistSearchInputs = buildDesktopLyricsArtistInputs(track)
+        val artistSearchInputs = buildDesktopLyricsArtistInputs(track).take(2)
         val lrcResults = artistSearchInputs.flatMap { artistInput ->
             lookupLrcLibCandidates(
                 title = track.title,
@@ -134,22 +132,7 @@ class DesktopLyricsRepository(
             ?.payload
             ?.let { return@withContext it }
 
-        artistSearchInputs.asSequence().flatMap { artistInput ->
-            lyricsOvhFallbackRepository.searchCandidates(
-                title = track.title,
-                artistName = artistInput,
-                albumTitle = track.album,
-                durationMs = track.durationMs,
-            ).asSequence()
-        }.distinctBy { "${normalizeLookupValue(it.title)}|${normalizeLookupValue(it.artist)}|${it.typeLabel}|${it.source}" }
-            .sortedWith(
-                compareBy<DesktopLyricsSearchCandidate> { if (it.payload.syncedLyrics.isNotEmpty()) 0 else 1 }
-                    .thenBy { it.score }
-                    .thenByDescending { it.payload.syncedLyrics.size }
-                    .thenByDescending { it.payload.plainLyrics.size },
-            )
-            .firstOrNull()
-            ?.payload
+        null
     }
 
     suspend fun searchCandidates(
@@ -161,7 +144,7 @@ class DesktopLyricsRepository(
         val artistSearchInputs = buildDesktopLyricsArtistInputs(
             title = title,
             primaryArtist = artistName,
-        )
+        ).take(2)
         val lrcResults = artistSearchInputs.flatMap { artistInput ->
             lookupLrcLibCandidates(
                 title = title,
@@ -187,16 +170,7 @@ class DesktopLyricsRepository(
             durationMs = durationMs,
         )
 
-        val ovhResults = artistSearchInputs.flatMap { artistInput ->
-            lyricsOvhFallbackRepository.searchCandidates(
-                title = title,
-                artistName = artistInput,
-                albumTitle = albumTitle,
-                durationMs = durationMs,
-            )
-        }
-
-        (lrcResults + musixmatchResults + ovhResults)
+        (lrcResults + musixmatchResults)
             .distinctBy { "${normalizeLookupValue(it.title)}|${normalizeLookupValue(it.artist)}|${it.typeLabel}|${it.source}" }
             .sortedWith(
                 compareBy<DesktopLyricsSearchCandidate> { if (it.payload.syncedLyrics.isNotEmpty()) 0 else 1 }
@@ -217,18 +191,18 @@ class DesktopLyricsRepository(
             .map(String::trim)
             .filter(String::isNotBlank)
             .distinct()
-            .take(3)
+            .take(2)
         val artistCandidates = (listOf(preferredDesktopArtistQuery(artistName)) + artistCandidateStrings(artistName))
             .map(String::trim)
             .filter(String::isNotBlank)
             .distinct()
-            .take(3)
+            .take(2)
         val albumCandidates = albumTitle?.let {
             (listOf(preferredDesktopTitleQuery(it)) + albumCandidateStrings(it))
                 .map(String::trim)
                 .filter(String::isNotBlank)
                 .distinct()
-                .take(2)
+                .take(1)
         }.orEmpty()
 
         val exactMatches = buildList {
@@ -265,13 +239,13 @@ class DesktopLyricsRepository(
         val searchQueries = buildList {
             add("${preferredDesktopTitleQuery(title)} ${preferredDesktopArtistQuery(artistName)}")
             add(listOf(title, artistName, albumTitle).filterNotNull().joinToString(" "))
+            add(preferredDesktopTitleQuery(title))
             titleCandidates.forEach { titleCandidate ->
                 artistCandidates.forEach { artistCandidate ->
                     add("$titleCandidate $artistCandidate")
                 }
             }
-            addAll(titleCandidates)
-        }.map(String::trim).filter(String::isNotBlank).distinct().take(4)
+        }.map(String::trim).filter(String::isNotBlank).distinct().take(3)
 
         val searchMatches = searchQueries.mapNotNull { query ->
             bestMatch(
@@ -292,7 +266,7 @@ class DesktopLyricsRepository(
                     .thenByDescending { it.payload.syncedLyrics.size }
                     .thenByDescending { it.payload.plainLyrics.size },
             )
-            .take(8)
+            .take(6)
     }
 
     private fun List<ScoredDesktopLyricsMatch>.bestResult(): ScoredDesktopLyricsMatch? =
@@ -370,12 +344,12 @@ class DesktopLyricsRepository(
             null
         }
 
-        val minArtistOverlap = if (payload.syncedLyrics.isNotEmpty()) 0.58 else 0.72
+        val minArtistOverlap = if (payload.syncedLyrics.isNotEmpty()) 0.45 else 0.72
         if (artistOverlap < minArtistOverlap) return null
-        if (titleOverlap < 0.68 && !shareCoreText(titleMatch.expected, titleMatch.actual)) return null
+        if (titleOverlap < 0.60 && !shareCoreText(titleMatch.expected, titleMatch.actual)) return null
         if (requestedAlbum != null && metadata.album != null && albumOverlap < 0.34 && titleOverlap < 0.92) return null
         if (durationDeltaSeconds != null) {
-            val maxDelta = if (payload.syncedLyrics.isNotEmpty()) 35.0 else 12.0
+            val maxDelta = if (payload.syncedLyrics.isNotEmpty()) 45.0 else 12.0
             if (durationDeltaSeconds > maxDelta) return null
         }
 
@@ -387,7 +361,7 @@ class DesktopLyricsRepository(
         }
         durationDeltaSeconds?.let { score += it * if (payload.syncedLyrics.isNotEmpty()) 0.12 else 0.18 }
         if (payload.syncedLyrics.isEmpty()) score += 0.9
-        val maxAcceptedScore = if (payload.syncedLyrics.isNotEmpty()) 8.6 else 5.3
+        val maxAcceptedScore = if (payload.syncedLyrics.isNotEmpty()) 10.2 else 5.3
         if (score > maxAcceptedScore) return null
 
         return ScoredDesktopLyricsMatch(
@@ -494,7 +468,7 @@ class DesktopLyricsRepository(
                     }
                 }
             }
-        }.distinct().take(4)
+        }.distinct().take(2)
 
         return queryInputs
             .mapNotNull { query ->
@@ -633,8 +607,8 @@ class DesktopLyricsRepository(
         val connection = (URL(url).openConnection() as? HttpURLConnection) ?: return null
         return try {
             connection.requestMethod = "GET"
-            connection.connectTimeout = 2_500
-            connection.readTimeout = 3_000
+            connection.connectTimeout = 1_500
+            connection.readTimeout = 2_000
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("User-Agent", "VerseFlowDesktop/1.0")
             val stream = when (connection.responseCode) {
@@ -855,8 +829,8 @@ private class DesktopLyricsOvhFallbackRepository {
         val connection = (URL(url).openConnection() as? HttpURLConnection) ?: return null
         return try {
             connection.requestMethod = "GET"
-            connection.connectTimeout = 2_500
-            connection.readTimeout = 3_000
+            connection.connectTimeout = 1_500
+            connection.readTimeout = 2_000
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("User-Agent", "VerseFlowDesktop/1.0")
 
