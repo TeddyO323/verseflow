@@ -17,11 +17,11 @@ VerseFlow currently spans multiple platform-specific builds, each with its own i
 
 ## Versions
 
-- [Android Phone](/Users/aliceakinyiolango/Documents/GitHub/verseflow/Android-Phone/README.md)
-- [Android Auto / Car](/Users/aliceakinyiolango/Documents/GitHub/verseflow/Android-Auto/README.md)
-- [macOS Desktop](/Users/aliceakinyiolango/Documents/GitHub/verseflow/macOS/README.md)
-- [Windows Desktop](/Users/aliceakinyiolango/Documents/GitHub/verseflow/Windows/README.md)
-- [iOS](/Users/aliceakinyiolango/Documents/GitHub/verseflow/iOS/README.md)
+- [Android Phone](Android-Phone/README.md)
+- [Android Auto / Car](Android-Auto/README.md)
+- [macOS Desktop](macOS/README.md)
+- [Windows Desktop](Windows/README.md)
+- [iOS](iOS/README.md)
 
 ## Releases
 
