@@ -20,26 +20,8 @@ It is designed for:
 - album, artist, and song metadata search
 - theme presets including immersive and monochrome modes
 
-## Screenshots
 
-### Home
-
-![macOS Home](/Users/aliceakinyiolango/Documents/GitHub/verseflow/media/home.jpeg)
-
-### Album Detail
-
-![macOS Album Detail](/Users/aliceakinyiolango/Documents/GitHub/verseflow/media/album.jpeg)
-
-### Artist Detail
-
-![macOS Artist Detail](/Users/aliceakinyiolango/Documents/GitHub/verseflow/media/artist.jpeg)
-
-### Lyrics
-
-![macOS Lyrics](/Users/aliceakinyiolango/Documents/GitHub/verseflow/media/lyrics.gif)
 
 ## Download
 
-Download link:
-
-`[Add macOS download link here]`
+Download [Here](https://github.com/TeddyO323/verseflow/releases/download/v1.0.0-beta.3/VerseFlow-mac.dmg)

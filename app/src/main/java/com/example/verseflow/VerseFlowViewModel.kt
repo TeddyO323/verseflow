@@ -4,11 +4,15 @@ import android.Manifest
 import android.app.Application
 import android.content.ComponentName
 import android.content.pm.PackageManager
+import android.database.Cursor
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -46,6 +50,7 @@ import com.example.verseflow.model.Album
 import com.example.verseflow.model.Artist
 import com.example.verseflow.model.ArtistLookupUiState
 import com.example.verseflow.model.ArtistSearchCandidate
+import com.example.verseflow.model.AccentPalette
 import com.example.verseflow.model.LibraryFilter
 import com.example.verseflow.model.LibrarySort
 import com.example.verseflow.model.LibraryTab
@@ -305,10 +310,11 @@ class VerseFlowViewModel(
         when {
             playback.repeatMode == RepeatMode.One -> updatePlayback(playback.copy(positionMs = 0L))
             playback.currentIndex < playback.queue.lastIndex -> {
-                updatePlayback(playback.copy(currentIndex = playback.currentIndex + 1, positionMs = 0L))
+                val nextIndex = playback.currentIndex + 1
+                updatePlayback(playback.copy(currentIndex = nextIndex, currentSongId = playback.queue.getOrNull(nextIndex)?.id, positionMs = 0L))
             }
             playback.repeatMode == RepeatMode.All && playback.queue.isNotEmpty() -> {
-                updatePlayback(playback.copy(currentIndex = 0, positionMs = 0L))
+                updatePlayback(playback.copy(currentIndex = 0, currentSongId = playback.queue.firstOrNull()?.id, positionMs = 0L))
             }
             else -> updatePlayback(playback.copy(isPlaying = false))
         }
@@ -331,6 +337,7 @@ class VerseFlowViewModel(
         updatePlayback(
             playback.copy(
                 currentIndex = index,
+                currentSongId = playback.queue.getOrNull(index)?.id ?: currentMediaId,
                 positionMs = controller.currentPosition.coerceAtLeast(0L),
                 isPlaying = controller.isPlaying,
             ),
@@ -542,7 +549,10 @@ class VerseFlowViewModel(
         } else if (currentStatus != LyricsLoadState.Loading) {
             updateLyricsStatus(songId, LyricsLoadState.Loading)
         }
-        val artistName = uiState.artistsById[song.artistId]?.name.orEmpty()
+        val artistInputs = buildList {
+            add(uiState.artistsById[song.artistId]?.name.orEmpty())
+            addAll(song.artistCredits)
+        }.map(String::trim).filter(String::isNotBlank).distinct().take(2)
         val albumTitle = uiState.albumsById[song.albumId]?.title
         lyricsJobs[songId] = viewModelScope.launch {
             val embeddedPlainLyrics = if (!hasSyncedLyrics && !hasPlainLyrics) {
@@ -568,14 +578,21 @@ class VerseFlowViewModel(
                 )
             }
 
-            when (
-                val result = lyricsRepository.lookup(
+            var result: LyricsLookupResult = LyricsLookupResult.NotFound
+            for (artistInput in artistInputs) {
+                val candidate = lyricsRepository.lookup(
                     title = song.title,
-                    artistName = artistName,
+                    artistName = artistInput,
                     albumTitle = albumTitle,
                     durationMs = song.durationMs,
                 )
-            ) {
+                if (candidate is LyricsLookupResult.Found) {
+                    result = candidate
+                    break
+                }
+            }
+
+            when (result) {
                 is LyricsLookupResult.Found -> {
                     applySongUpdate(songId) { existing ->
                         existing.copy(
@@ -887,6 +904,7 @@ class VerseFlowViewModel(
             queue = queue,
             canonicalQueue = canonicalQueue,
             currentIndex = currentIndex,
+            currentSongId = currentQueueSong.id,
             positionMs = previousPlayback.positionMs.coerceIn(0L, currentQueueSong.durationMs),
             isPlaying = previousPlayback.isPlaying && previousSongId == currentSongId,
             likedSongIds = keptLikedSongIds,
@@ -911,6 +929,23 @@ class VerseFlowViewModel(
 
     fun updateSearchQuery(query: String) {
         uiState = uiState.copy(searchQuery = query)
+    }
+
+    fun openExternalAudio(mediaUri: String) {
+        val normalizedUri = mediaUri.trim()
+        if (normalizedUri.isBlank()) return
+
+        activeCatalog.songs.firstOrNull { it.mediaUri == normalizedUri }?.let { existingSong ->
+            playSong(existingSong.id, queueSongIds = listOf(existingSong.id))
+            return
+        }
+
+        viewModelScope.launch {
+            val externalSong = buildExternalSong(normalizedUri) ?: return@launch
+            activeCatalog = activeCatalog.upsertExternalSong(externalSong)
+            rebuildStateFromActiveCatalog()
+            playSong(externalSong.id, queueSongIds = listOf(externalSong.id))
+        }
     }
 
     fun recallSearch(query: String) {
@@ -1029,6 +1064,7 @@ class VerseFlowViewModel(
             queue = queue,
             canonicalQueue = canonicalQueue,
             currentIndex = currentIndex,
+            currentSongId = queue.getOrNull(currentIndex)?.id,
             positionMs = 0L,
             isPlaying = true,
             isShuffled = shuffled,
@@ -1105,10 +1141,11 @@ class VerseFlowViewModel(
 
         when {
             playback.currentIndex < playback.queue.lastIndex -> {
-                updatePlayback(playback.copy(currentIndex = playback.currentIndex + 1, positionMs = 0L))
+                val nextIndex = playback.currentIndex + 1
+                updatePlayback(playback.copy(currentIndex = nextIndex, currentSongId = playback.queue.getOrNull(nextIndex)?.id, positionMs = 0L))
             }
             playback.repeatMode == RepeatMode.All -> {
-                updatePlayback(playback.copy(currentIndex = 0, positionMs = 0L))
+                updatePlayback(playback.copy(currentIndex = 0, currentSongId = playback.queue.firstOrNull()?.id, positionMs = 0L))
             }
         }
     }
@@ -1140,10 +1177,12 @@ class VerseFlowViewModel(
 
         when {
             playback.currentIndex > 0 -> {
-                updatePlayback(playback.copy(currentIndex = playback.currentIndex - 1, positionMs = 0L))
+                val nextIndex = playback.currentIndex - 1
+                updatePlayback(playback.copy(currentIndex = nextIndex, currentSongId = playback.queue.getOrNull(nextIndex)?.id, positionMs = 0L))
             }
             playback.repeatMode == RepeatMode.All -> {
-                updatePlayback(playback.copy(currentIndex = playback.queue.lastIndex, positionMs = 0L))
+                val nextIndex = playback.queue.lastIndex
+                updatePlayback(playback.copy(currentIndex = nextIndex, currentSongId = playback.queue.getOrNull(nextIndex)?.id, positionMs = 0L))
             }
         }
     }
@@ -1676,6 +1715,7 @@ class VerseFlowViewModel(
             queue = queue,
             canonicalQueue = queue,
             currentIndex = currentIndex,
+            currentSongId = currentQueueSong.id,
             positionMs = session.positionMs.coerceIn(0L, currentQueueSong.durationMs),
             isPlaying = false,
             isShuffled = session.isShuffled,
@@ -1839,6 +1879,7 @@ class VerseFlowViewModel(
             queue = queue,
             canonicalQueue = queue,
             currentIndex = 0,
+            currentSongId = queue.firstOrNull()?.id,
             positionMs = if (shouldAutoplay && queue.firstOrNull()?.source == SongSource.Mock) 18_000L else 0L,
             isPlaying = shouldAutoplay,
             isShuffled = false,
@@ -1942,6 +1983,83 @@ private fun <T> List<T>.rotateBySeed(seed: Int): List<T> {
     return drop(offset) + take(offset)
 }
 
+private fun CatalogData.upsertExternalSong(song: Song): CatalogData {
+    val artistName = song.artistCredits.firstOrNull() ?: "Unknown Artist"
+    val existingSongIndex = songs.indexOfFirst { it.id == song.id || it.mediaUri == song.mediaUri }
+    val updatedSongs = if (existingSongIndex >= 0) {
+        songs.mapIndexed { index, existing -> if (index == existingSongIndex) song else existing }
+    } else {
+        listOf(song) + songs
+    }
+
+    val existingAlbum = albums.firstOrNull { it.id == song.albumId }
+    val updatedAlbums = if (existingAlbum == null) {
+        listOf(
+            Album(
+                id = song.albumId,
+                title = "Opened in VerseFlow",
+                artistId = song.artistId,
+                year = 2026,
+                label = "Imported file",
+                description = "Opened directly in VerseFlow from another app.",
+                palette = song.palette,
+                trackIds = listOf(song.id),
+                artworkUri = song.artworkUri,
+            ),
+        ) + albums
+    } else {
+        albums.map { album ->
+            if (album.id == song.albumId) {
+                album.copy(
+                    trackIds = (album.trackIds + song.id).distinct(),
+                    artworkUri = album.artworkUri ?: song.artworkUri,
+                )
+            } else {
+                album
+            }
+        }
+    }
+
+    val updatedArtists = if (artists.none { it.id == song.artistId }) {
+        listOf(
+            Artist(
+                id = song.artistId,
+                name = artistName,
+                genre = song.genre ?: "Local File",
+                monthlyListeners = "1 opened file",
+                bio = "Opened directly in VerseFlow from another app.",
+                heroPalette = song.palette,
+                albumIds = listOf(song.albumId),
+                topTrackIds = listOf(song.id),
+                photoUri = song.artworkUri,
+                trackCount = 1,
+                relatedArtistIds = emptyList(),
+            ),
+        ) + artists
+    } else {
+        artists.map { artist ->
+            if (artist.id == song.artistId) {
+                artist.copy(
+                    albumIds = (artist.albumIds + song.albumId).distinct(),
+                    topTrackIds = (listOf(song.id) + artist.topTrackIds).distinct().take(5),
+                    trackCount = artist.trackCount + if (artist.topTrackIds.contains(song.id)) 0 else 1,
+                    photoUri = artist.photoUri ?: song.artworkUri,
+                )
+            } else {
+                artist
+            }
+        }
+    }
+
+    return copy(
+        songs = updatedSongs,
+        albums = updatedAlbums,
+        artists = updatedArtists,
+        recentlyPlayed = (listOf(song) + recentlyPlayed).distinctBy(Song::id).take(6),
+        trendingSongs = (listOf(song) + trendingSongs).distinctBy(Song::id).take(8),
+    )
+}
+
 private fun MusicRepository.toCatalog(): CatalogData {
     val songs = songs()
     val songsById = songs.associateBy(Song::id)
@@ -1995,6 +2113,83 @@ private fun emptyCatalogData(): CatalogData = CatalogData(
     favoritePlaylists = emptyList(),
     trendingCategories = emptyList(),
 )
+
+private suspend fun VerseFlowViewModel.buildExternalSong(mediaUri: String): Song? = withContext(Dispatchers.IO) {
+    val context = getApplication<Application>().applicationContext
+    val uri = runCatching { Uri.parse(mediaUri) }.getOrNull() ?: return@withContext null
+    val metadata = runCatching {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, uri)
+            Triple(
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE).orEmpty(),
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST).orEmpty(),
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM).orEmpty(),
+            ) to retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }.getOrNull()
+
+    val displayName = runCatching<String?> {
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor: Cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+    }.getOrDefault(null).orEmpty()
+
+    val rawTitle = metadata?.first?.first.orEmpty().ifBlank {
+        displayName.substringBeforeLast('.').ifBlank { "Imported audio" }
+    }
+    val rawArtist = metadata?.first?.second.orEmpty().ifBlank { "Unknown Artist" }
+    val rawAlbum = metadata?.first?.third.orEmpty().ifBlank { "Singles" }
+    val durationMs = metadata?.second?.coerceAtLeast(0L) ?: 0L
+    val artistCredits = buildArtistCredits(rawArtist, rawTitle).ifEmpty { listOf(rawArtist) }
+    val primaryArtist = artistCredits.firstOrNull() ?: rawArtist
+    val artistId = "external_artist_${externalStableId(primaryArtist)}"
+    val albumId = "external_album_${externalStableId("$primaryArtist::$rawAlbum")}"
+    val songId = "external_song_${externalStableId(mediaUri)}"
+    val palette = externalPaletteFor("$rawTitle$primaryArtist$rawAlbum")
+
+    Song(
+        id = songId,
+        title = rawTitle,
+        artistId = artistId,
+        albumId = albumId,
+        durationMs = durationMs,
+        genre = null,
+        mood = "Opened from device",
+        palette = palette,
+        lyrics = emptyList(),
+        plainLyrics = emptyList(),
+        lyricsAttribution = null,
+        isDownloaded = true,
+        artworkUri = mediaUri,
+        mediaUri = mediaUri,
+        artistCredits = artistCredits,
+        folderName = null,
+        folderPath = null,
+        source = SongSource.Local,
+    )
+}
+
+private fun externalPaletteFor(seed: String): AccentPalette {
+    val hash = seed.hashCode().absoluteValue
+    val hue = (hash % 360).toFloat()
+    val secondaryHue = (hue + 38f) % 360f
+    val tertiaryHue = (hue + 290f) % 360f
+    return AccentPalette(
+        background = externalHsv(hue, 0.56f, 0.14f),
+        primary = externalHsv(hue, 0.68f, 0.92f),
+        secondary = externalHsv(secondaryHue, 0.58f, 0.95f),
+        tertiary = externalHsv(tertiaryHue, 0.48f, 0.96f),
+        glow = externalHsv((hue + 18f) % 360f, 0.40f, 0.98f),
+    )
+}
+
+private fun externalHsv(hue: Float, saturation: Float, value: Float): Color =
+    Color.hsv(hue, saturation, value)
+
+private fun externalStableId(seed: String): String = seed.hashCode().absoluteValue.toString()
 
 private fun Application.hasAudioPermission(): Boolean {
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

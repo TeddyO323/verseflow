@@ -77,7 +77,10 @@ import com.example.verseflow.model.LibraryTab
 import kotlinx.coroutines.launch
 
 @Composable
-fun VerseFlowApp() {
+fun VerseFlowApp(
+    externalAudioUri: String? = null,
+    onExternalAudioUriConsumed: (String) -> Unit = {},
+) {
     val context = LocalContext.current
     val application = context.applicationContext as Application
     val viewModel: VerseFlowViewModel = viewModel(
@@ -194,6 +197,12 @@ fun VerseFlowApp() {
         } else {
             viewModel.performLegacyDeviceDelete(songId)
         }
+    }
+
+    LaunchedEffect(externalAudioUri) {
+        val mediaUri = externalAudioUri?.takeIf(String::isNotBlank) ?: return@LaunchedEffect
+        viewModel.openExternalAudio(mediaUri)
+        onExternalAudioUriConsumed(mediaUri)
     }
 
     VerseFlowTheme(preset = uiState.profile.settings.themePreset) {

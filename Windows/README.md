@@ -27,6 +27,6 @@ Add screenshots for the Windows version here.
 
 ## Download
 
-Download link:
+Download [Here](https://github.com/TeddyO323/verseflow/releases/download/v1.0.0-beta.3/VerseFlow-1.0.0.exe)
 
-`[Add Windows download link here]`
+

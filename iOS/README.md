@@ -14,12 +14,4 @@ This folder is reserved for the iPhone build documentation, screenshots, release
 - now playing and queue flows
 - iPhone-focused interface
 
-## Screenshots
 
-Add iOS screenshots here once the build is ready.
-
-## Download
-
-Download link:
-
-`[Add iOS download link here]`

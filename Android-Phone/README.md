@@ -22,30 +22,7 @@ It is designed for:
 - favorite artists
 - multiple themes
 
-## Screenshots
-
-### Home
-
-![Android Phone Home](/Users/aliceakinyiolango/Documents/GitHub/verseflow/media/home.jpeg)
-
-### Songs
-
-![Android Phone Songs](/Users/aliceakinyiolango/Documents/GitHub/verseflow/media/songspage.jpeg)
-
-### Now Playing
-
-![Android Phone Now Playing](/Users/aliceakinyiolango/Documents/GitHub/verseflow/media/nowplaying.jpeg)
-
-### Lyrics
-
-![Android Phone Lyrics](/Users/aliceakinyiolango/Documents/GitHub/verseflow/media/lyrics.gif)
-
-### Settings
-
-![Android Phone Settings](/Users/aliceakinyiolango/Documents/GitHub/verseflow/media/settings.jpeg)
 
 ## Download
 
-Download link:
-
-`[Add Android phone download link here]`
+Download [Here](https://github.com/TeddyO323/verseflow/releases/download/v1.0.0-beta.3/VerseFlow-android-phone-debug.apk)

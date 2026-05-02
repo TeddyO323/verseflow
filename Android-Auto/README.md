@@ -25,6 +25,4 @@ Add screenshots for the Android Auto / car version here.
 
 ## Download
 
-Download link:
-
-`[Add Android Auto / car download link here]`
+Download [Here](https://github.com/TeddyO323/verseflow/releases/download/v1.0.0-beta.3/VerseFlow-android-auto-debug.apk)

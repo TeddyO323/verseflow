@@ -218,13 +218,13 @@ fun ArtworkReactiveBackdrop(
     }
     val reactivePalette = backdrop?.palette ?: palette
     val isMonochromeArtwork = backdrop?.isMonochrome == true
-    val backgroundScale = if (isCarLandscapeMode) 1.34f else 1.72f
+    val backgroundScale = if (isCarLandscapeMode) 1.46f else 1.72f
     val backgroundAlpha = if (isCarLandscapeMode) {
-        if (isMonochromeArtwork) 0.34f else 0.38f
+        if (isMonochromeArtwork) 0.22f else 0.26f
     } else {
         if (isMonochromeArtwork) 0.78f else 0.72f
     }
-    val backdropBlur = if (isCarLandscapeMode) 82.dp else 168.dp
+    val backdropBlur = if (isCarLandscapeMode) 118.dp else 168.dp
     val foregroundAlpha = if (isCarLandscapeMode) 0f else if (isMonochromeArtwork) 0.02f else 0.03f
     val baseTone = reactivePalette.background
     val midTone = androidx.compose.ui.graphics.lerp(reactivePalette.background, reactivePalette.secondary, if (isCarLandscapeMode) 0.42f else 0.22f)
@@ -252,7 +252,7 @@ fun ArtworkReactiveBackdrop(
                         Brush.linearGradient(
                             listOf(
                                 baseTone.copy(alpha = if (isCarLandscapeMode) 0.78f else 0.28f),
-                                midTone.copy(alpha = if (isCarLandscapeMode) 0.56f else 0.22f),
+                                midTone.copy(alpha = if (isCarLandscapeMode) 0.62f else 0.22f),
                                 Color.Black,
                             ),
                         ),
@@ -291,9 +291,22 @@ fun ArtworkReactiveBackdrop(
                         .background(
                             Brush.verticalGradient(
                                 listOf(
-                                    Color.Black.copy(alpha = 0.20f),
-                                    Color.Black.copy(alpha = 0.42f),
-                                    Color.Black.copy(alpha = 0.82f),
+                                    Color.Black.copy(alpha = 0.28f),
+                                    Color.Black.copy(alpha = 0.56f),
+                                    Color.Black.copy(alpha = 0.88f),
+                                ),
+                            ),
+                        ),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.10f),
+                                    Color.Black.copy(alpha = 0.12f),
                                 ),
                             ),
                         ),

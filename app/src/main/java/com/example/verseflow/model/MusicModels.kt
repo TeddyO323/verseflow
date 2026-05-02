@@ -213,6 +213,7 @@ data class PlaybackUiState(
     val queue: List<Song> = emptyList(),
     val canonicalQueue: List<Song> = emptyList(),
     val currentIndex: Int = 0,
+    val currentSongId: String? = null,
     val positionMs: Long = 0L,
     val isPlaying: Boolean = false,
     val isShuffled: Boolean = false,
@@ -222,7 +223,7 @@ data class PlaybackUiState(
     val isQueueSheetVisible: Boolean = false,
 ) {
     val currentSong: Song?
-        get() = queue.getOrNull(currentIndex)
+        get() = currentSongId?.let { id -> queue.firstOrNull { it.id == id } } ?: queue.getOrNull(currentIndex)
 }
 
 data class ManualLyricsSearchUiState(
