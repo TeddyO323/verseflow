@@ -7,6 +7,7 @@ import com.example.verseflow.model.AccentPalette
 import com.example.verseflow.model.Album
 import com.example.verseflow.model.Artist
 import com.example.verseflow.model.Playlist
+import com.example.verseflow.model.LyricLine
 import com.example.verseflow.model.Song
 import com.example.verseflow.model.SongSource
 import org.json.JSONArray
@@ -49,6 +50,14 @@ class DeviceCatalogCacheStore(
         .put("genre", genre)
         .put("mood", mood)
         .put("palette", palette.toJson())
+        .put("syncedLyrics", JSONArray().apply {
+            lyrics.forEach { line ->
+                put(JSONObject().apply {
+                    put("timestampMs", line.timestampMs)
+                    put("text", line.text)
+                })
+            }
+        })
         .put("plainLyrics", JSONArray().apply { plainLyrics.forEach(::put) })
         .put("lyricsAttribution", lyricsAttribution)
         .put("isDownloaded", isDownloaded)
@@ -110,7 +119,12 @@ class DeviceCatalogCacheStore(
         genre = json.optString("genre").takeIf(String::isNotBlank),
         mood = json.optString("mood"),
         palette = json.optJSONObject("palette")?.toPalette() ?: fallbackPalette(),
-        lyrics = emptyList(),
+        lyrics = json.optJSONArray("syncedLyrics").orEmpty().mapObjects { obj ->
+            com.example.verseflow.model.LyricLine(
+                timestampMs = obj.optLong("timestampMs", 0L),
+                text = obj.optString("text"),
+            )
+        },
         plainLyrics = json.optJSONArray("plainLyrics").orEmpty().mapStrings(),
         lyricsAttribution = json.optString("lyricsAttribution").takeIf(String::isNotBlank),
         isDownloaded = json.optBoolean("isDownloaded", true),

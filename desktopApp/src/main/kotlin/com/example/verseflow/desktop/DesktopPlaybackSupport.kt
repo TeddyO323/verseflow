@@ -18,6 +18,10 @@ data class DesktopPlaybackState(
     val isPlaying: Boolean = false,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
+    val energyLevel: Float = 0f,
+    val bassLevel: Float = 0f,
+    val midLevel: Float = 0f,
+    val trebleLevel: Float = 0f,
     val errorMessage: String? = null,
 )
 
@@ -75,6 +79,9 @@ class DesktopPlaybackController {
             val media = Media(File(track.path).toURI().toString())
             val player = MediaPlayer(media)
             mediaPlayer = player
+            player.audioSpectrumInterval = 0.06
+            player.audioSpectrumNumBands = 48
+            player.audioSpectrumThreshold = -72
 
             _state.value = DesktopPlaybackState(
                 trackId = track.id,
@@ -88,6 +95,28 @@ class DesktopPlaybackController {
                 val currentMs = newValue?.toMillis()?.roundToLong()?.coerceAtLeast(0L) ?: 0L
                 _state.update { state ->
                     state.copy(positionMs = currentMs)
+                }
+            }
+
+            player.audioSpectrumListener = javafx.scene.media.AudioSpectrumListener { _, _, magnitudes, _ ->
+                val normalized = magnitudes.map { magnitude ->
+                    ((magnitude + 72f) / 72f).coerceIn(0f, 1f)
+                }
+                val bassSlice = normalized.take(8)
+                val midSlice = normalized.drop(8).take(16)
+                val trebleSlice = normalized.drop(24)
+                val bassLevel = bassSlice.averageOrZero()
+                val midLevel = midSlice.averageOrZero()
+                val trebleLevel = trebleSlice.averageOrZero()
+                val energyLevel = normalized.averageOrZero()
+
+                _state.update { state ->
+                    state.copy(
+                        energyLevel = energyLevel,
+                        bassLevel = bassLevel,
+                        midLevel = midLevel,
+                        trebleLevel = trebleLevel,
+                    )
                 }
             }
 
@@ -125,19 +154,39 @@ class DesktopPlaybackController {
 
             player.setOnPaused {
                 _state.update { state ->
-                    state.copy(isPlaying = false)
+                    state.copy(
+                        isPlaying = false,
+                        energyLevel = 0f,
+                        bassLevel = 0f,
+                        midLevel = 0f,
+                        trebleLevel = 0f,
+                    )
                 }
             }
 
             player.setOnStopped {
                 _state.update { state ->
-                    state.copy(isPlaying = false, positionMs = 0L)
+                    state.copy(
+                        isPlaying = false,
+                        positionMs = 0L,
+                        energyLevel = 0f,
+                        bassLevel = 0f,
+                        midLevel = 0f,
+                        trebleLevel = 0f,
+                    )
                 }
             }
 
             player.setOnEndOfMedia {
                 _state.update { state ->
-                    state.copy(isPlaying = false, positionMs = state.durationMs)
+                    state.copy(
+                        isPlaying = false,
+                        positionMs = state.durationMs,
+                        energyLevel = 0f,
+                        bassLevel = 0f,
+                        midLevel = 0f,
+                        trebleLevel = 0f,
+                    )
                 }
                 _events.tryEmit(DesktopPlaybackEvent.TrackCompleted)
             }
@@ -146,6 +195,10 @@ class DesktopPlaybackController {
                 _state.update { state ->
                     state.copy(
                         isPlaying = false,
+                        energyLevel = 0f,
+                        bassLevel = 0f,
+                        midLevel = 0f,
+                        trebleLevel = 0f,
                         errorMessage = player.error?.message ?: media.error?.message ?: "VerseFlow could not play this file.",
                     )
                 }
@@ -196,3 +249,6 @@ class DesktopPlaybackController {
         stopPlayback()
     }
 }
+
+private fun List<Float>.averageOrZero(): Float =
+    if (isEmpty()) 0f else average().toFloat()

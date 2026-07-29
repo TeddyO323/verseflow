@@ -36,16 +36,7 @@ class LrcLibLyricsRepository {
             albumTitle = albumTitle,
             durationMs = durationMs,
         )
-        if (primaryResult is LyricsLookupResult.Found) {
-            return@withContext primaryResult
-        }
-
-        lyricsOvhFallbackRepository.lookup(
-            title = title,
-            artistName = artistName,
-            albumTitle = albumTitle,
-            durationMs = durationMs,
-        )
+        primaryResult
     }
 
     suspend fun searchCandidates(
@@ -53,6 +44,7 @@ class LrcLibLyricsRepository {
         artistName: String,
         albumTitle: String?,
         durationMs: Long,
+        includePlainFallback: Boolean = true,
     ): List<LyricsSearchCandidate> = withContext(Dispatchers.IO) {
         val primaryCandidates = searchLrcLibCandidates(
             title = title,
@@ -60,12 +52,16 @@ class LrcLibLyricsRepository {
             albumTitle = albumTitle,
             durationMs = durationMs,
         )
-        val fallbackCandidates = lyricsOvhFallbackRepository.searchCandidates(
-            title = title,
-            artistName = artistName,
-            albumTitle = albumTitle,
-            durationMs = durationMs,
-        )
+        val fallbackCandidates = if (includePlainFallback) {
+            lyricsOvhFallbackRepository.searchCandidates(
+                title = title,
+                artistName = artistName,
+                albumTitle = albumTitle,
+                durationMs = durationMs,
+            )
+        } else {
+            emptyList()
+        }
 
         (primaryCandidates + fallbackCandidates)
             .distinctBy { normalizeLookupValue("${it.title} ${it.artistName} ${it.albumTitle.orEmpty()} ${it.sourceLabel}") }

@@ -7,6 +7,7 @@ import java.util.prefs.Preferences
 data class DesktopSettingsSnapshot(
     val displayName: String = "Music Lover",
     val selectedTheme: String,
+    val lyricsAppearance: String = "Paragraph Highlight",
     val isShuffleEnabled: Boolean = false,
     val isRepeatEnabled: Boolean = true,
     val autoRescanEnabled: Boolean = false,
@@ -59,6 +60,7 @@ class DesktopAppStore {
         DesktopSettingsSnapshot(
             displayName = preferences.get(KEY_DISPLAY_NAME, null)?.trim().orEmpty().ifBlank { "Music Lover" },
             selectedTheme = preferences.get(KEY_SELECTED_THEME, null)?.trim().orEmpty().ifBlank { defaultTheme },
+            lyricsAppearance = preferences.get(KEY_LYRICS_APPEARANCE, null)?.trim().orEmpty().ifBlank { "Paragraph Highlight" },
             isShuffleEnabled = preferences.getBoolean(KEY_SHUFFLE_ENABLED, false),
             isRepeatEnabled = preferences.getBoolean(KEY_REPEAT_ENABLED, true),
             autoRescanEnabled = preferences.getBoolean(KEY_AUTO_RESCAN_ENABLED, false),
@@ -69,6 +71,7 @@ class DesktopAppStore {
     fun saveSettings(settings: DesktopSettingsSnapshot) {
         preferences.put(KEY_DISPLAY_NAME, settings.displayName.ifBlank { "Music Lover" })
         preferences.put(KEY_SELECTED_THEME, settings.selectedTheme)
+        preferences.put(KEY_LYRICS_APPEARANCE, settings.lyricsAppearance)
         preferences.putBoolean(KEY_SHUFFLE_ENABLED, settings.isShuffleEnabled)
         preferences.putBoolean(KEY_REPEAT_ENABLED, settings.isRepeatEnabled)
         preferences.putBoolean(KEY_AUTO_RESCAN_ENABLED, settings.autoRescanEnabled)
@@ -505,6 +508,7 @@ class DesktopAppStore {
     private companion object {
         const val KEY_DISPLAY_NAME = "desktop_display_name"
         const val KEY_SELECTED_THEME = "desktop_selected_theme"
+        const val KEY_LYRICS_APPEARANCE = "desktop_lyrics_appearance"
         const val KEY_SHUFFLE_ENABLED = "desktop_shuffle_enabled"
         const val KEY_REPEAT_ENABLED = "desktop_repeat_enabled"
         const val KEY_AUTO_RESCAN_ENABLED = "desktop_auto_rescan_enabled"

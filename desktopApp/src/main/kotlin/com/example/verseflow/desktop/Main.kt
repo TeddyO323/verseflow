@@ -12,9 +12,16 @@ fun main(args: Array<String>) = application {
             ?.equals("true", ignoreCase = true) == true ||
         System.getenv("VERSEFLOW_DESKTOP_PREVIEW")
             ?.equals("true", ignoreCase = true) == true
+    val devMode = System.getProperty("verseflow.desktop.dev")
+        ?.equals("true", ignoreCase = true) == true
+    val windowTitle = when {
+        previewMode -> "VerseFlow Preview • $desktopPlatformName"
+        devMode -> "VerseFlow Dev • $desktopPlatformName"
+        else -> "VerseFlow • $desktopPlatformName"
+    }
     Window(
         onCloseRequest = ::exitApplication,
-        title = if (previewMode) "VerseFlow Preview • $desktopPlatformName" else "VerseFlow • $desktopPlatformName",
+        title = windowTitle,
         state = rememberWindowState(size = DpSize(1440.dp, 920.dp)),
     ) {
         VerseFlowDesktopApp(previewMode = previewMode)

@@ -504,21 +504,30 @@ class VerseFlowViewModel(
         if (song.source != SongSource.Local) return
         if (lyricsJobs[songId]?.isActive == true) return
 
-        if (song.lyrics.isEmpty() && song.plainLyrics.isEmpty()) {
-            lyricsCacheStore.load(song.mediaUri)?.let { cachedLyrics ->
+        lyricsCacheStore.load(song.mediaUri)?.let { cachedLyrics ->
+            val hasSyncedFromCache = cachedLyrics.syncedLyrics.isNotEmpty()
+            val hasPlainFromCache = cachedLyrics.plainLyrics.isNotEmpty()
+            val needsUpdate = hasSyncedFromCache && song.lyrics.isEmpty() ||
+                hasPlainFromCache && song.plainLyrics.isEmpty()
+            if (needsUpdate) {
                 applySongUpdate(songId) { existing ->
                     existing.copy(
-                        lyrics = cachedLyrics.syncedLyrics,
-                        plainLyrics = if (cachedLyrics.plainLyrics.isNotEmpty()) {
+                        lyrics = if (hasSyncedFromCache) cachedLyrics.syncedLyrics else existing.lyrics,
+                        plainLyrics = if (hasPlainFromCache) {
                             cachedLyrics.plainLyrics
-                        } else {
+                        } else if (hasSyncedFromCache) {
                             cachedLyrics.syncedLyrics.map { it.text }
+                        } else {
+                            existing.plainLyrics
                         },
                         lyricsAttribution = cachedLyrics.attribution,
                     )
                 }
                 updateLyricsStatus(songId, LyricsLoadState.Ready)
-                return
+                if (hasSyncedFromCache) {
+                    lyricsUpgradeAttempts.remove(songId)
+                    return
+                }
             }
         }
 
@@ -528,8 +537,12 @@ class VerseFlowViewModel(
         if (hasSyncedLyrics || hasPlainLyrics) {
             if (hasSyncedLyrics) {
                 lyricsUpgradeAttempts.remove(songId)
+                if (currentStatus != LyricsLoadState.Ready) {
+                    updateLyricsStatus(songId, LyricsLoadState.Ready)
+                }
+                return
             }
-            if (!hasSyncedLyrics && hasPlainLyrics && lyricsUpgradeAttempts.add(songId)) {
+            if (hasPlainLyrics && lyricsUpgradeAttempts.add(songId)) {
                 updateLyricsStatus(songId, LyricsLoadState.Loading)
             } else {
                 if (currentStatus != LyricsLoadState.Ready) {
@@ -589,6 +602,29 @@ class VerseFlowViewModel(
                 if (candidate is LyricsLookupResult.Found) {
                     result = candidate
                     break
+                }
+            }
+            if (result !is LyricsLookupResult.Found) {
+                for (artistInput in artistInputs) {
+                    val syncedCandidate = lyricsRepository.searchCandidates(
+                        title = song.title,
+                        artistName = artistInput,
+                        albumTitle = albumTitle,
+                        durationMs = song.durationMs,
+                        includePlainFallback = false,
+                    ).firstOrNull { it.hasSyncedLyrics }
+                    if (syncedCandidate != null) {
+                        result = LyricsLookupResult.Found(
+                            syncedLyrics = syncedCandidate.syncedLyrics,
+                            plainLyrics = if (syncedCandidate.plainLyrics.isNotEmpty()) {
+                                syncedCandidate.plainLyrics
+                            } else {
+                                syncedCandidate.syncedLyrics.map { it.text }
+                            },
+                            attribution = syncedCandidate.attribution,
+                        )
+                        break
+                    }
                 }
             }
 

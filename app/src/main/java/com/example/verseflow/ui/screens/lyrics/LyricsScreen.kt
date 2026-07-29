@@ -2,15 +2,12 @@ package com.example.verseflow.ui.screens.lyrics
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -20,9 +17,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Pause
@@ -31,7 +25,7 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -39,34 +33,29 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.verseflow.model.LyricsLoadState
 import com.example.verseflow.model.LyricsDisplayMode
 import com.example.verseflow.model.LyricsSearchCandidate
+import com.example.verseflow.model.LyricLine
 import com.example.verseflow.model.VerseFlowUiState
-import com.example.verseflow.ui.components.AlbumArtwork
-import com.example.verseflow.ui.components.ArtworkReactiveBackdrop
+import com.example.verseflow.ui.components.AuroraBackdrop
 import com.example.verseflow.ui.components.EmptyStatePanel
 import com.example.verseflow.ui.components.GlassPanel
 import com.example.verseflow.ui.components.GlowIconButton
 import com.example.verseflow.ui.components.LyricsLineChip
-import com.example.verseflow.ui.components.PlaybackProgress
-import com.example.verseflow.ui.components.VerseFilterChip
 import com.example.verseflow.ui.car.rememberCarModeArtworkUri
 import com.example.verseflow.ui.car.rememberIsCarLandscapeMode
-import kotlinx.coroutines.launch
 
 @Composable
 fun LyricsScreen(
@@ -113,44 +102,20 @@ fun LyricsScreen(
     val plainLyrics = song.plainLyrics.ifEmpty { syncedLyrics.map { it.text } }
     val lyricsStatus = uiState.lyricsStatusBySongId[song.id] ?: LyricsLoadState.Idle
     val activeIndex = syncedLyrics.indexOfLast { it.timestampMs <= uiState.playback.positionMs }.coerceAtLeast(0)
-    val activeLine = syncedLyrics.getOrNull(activeIndex)?.text
     val isCarLandscapeMode = rememberIsCarLandscapeMode()
     val carArtworkUri = rememberCarModeArtworkUri(uiState.profile.settings.useTestArtwork)
-    val effectiveArtworkUri = carArtworkUri ?: song.artworkUri
-    val effectiveFallbackMediaUri = if (carArtworkUri != null) null else song.mediaUri
-    val listState = rememberLazyListState()
     val showingSyncedLyrics = uiState.playback.lyricsDisplayMode == LyricsDisplayMode.Synced && syncedLyrics.isNotEmpty()
     val view = LocalView.current
-    val coroutineScope = rememberCoroutineScope()
-    var followLiveLyrics by rememberSaveable(song.id, uiState.playback.lyricsDisplayMode) { mutableStateOf(true) }
-    var autoScrolling by rememberSaveable(song.id, uiState.playback.lyricsDisplayMode) { mutableStateOf(false) }
+    val visibleSyncedLines = visibleLyricLines(
+        syncedLyrics = syncedLyrics,
+        activeIndex = activeIndex,
+    )
 
     DisposableEffect(view, song.id) {
         val previousKeepScreenOn = view.keepScreenOn
         view.keepScreenOn = true
         onDispose {
             view.keepScreenOn = previousKeepScreenOn
-        }
-    }
-
-    LaunchedEffect(song.id, uiState.playback.lyricsDisplayMode) {
-        followLiveLyrics = true
-        autoScrolling = true
-        listState.scrollToItem(0)
-        autoScrolling = false
-    }
-
-    LaunchedEffect(listState.isScrollInProgress, showingSyncedLyrics, song.id) {
-        if (showingSyncedLyrics && listState.isScrollInProgress && !autoScrolling) {
-            followLiveLyrics = false
-        }
-    }
-
-    LaunchedEffect(activeIndex, followLiveLyrics, uiState.playback.lyricsDisplayMode, song.id) {
-        if (showingSyncedLyrics && followLiveLyrics) {
-            autoScrolling = true
-            listState.animateScrollToItem((activeIndex - 2).coerceAtLeast(0))
-            autoScrolling = false
         }
     }
 
@@ -168,10 +133,8 @@ fun LyricsScreen(
                 )
             },
     ) {
-        ArtworkReactiveBackdrop(
+        AuroraBackdrop(
             palette = song.palette,
-            artworkUri = effectiveArtworkUri,
-            fallbackMediaUri = effectiveFallbackMediaUri,
             modifier = Modifier.fillMaxSize(),
         )
         if (isCarLandscapeMode) {
@@ -180,7 +143,8 @@ fun LyricsScreen(
                 songTitle = song.title,
                 artistName = uiState.artistsById[song.artistId]?.name.orEmpty(),
                 artworkUriOverride = carArtworkUri,
-                activeLine = activeLine,
+                activeIndex = activeIndex,
+                visibleSyncedLines = visibleSyncedLines,
                 plainLyrics = plainLyrics,
                 lyricsStatus = lyricsStatus,
                 onBack = onBack,
@@ -188,24 +152,22 @@ fun LyricsScreen(
                 onPlayPause = onPlayPause,
                 onNext = onNext,
                 onPrevious = onPrevious,
-                onModeSelected = onModeSelected,
                 onManualSearchRequested = onManualSearchRequested,
             )
             return
         }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .padding(vertical = 20.dp),
+                .statusBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 GlowIconButton(
@@ -213,203 +175,29 @@ fun LyricsScreen(
                     contentDescription = "Back",
                     onClick = onBack,
                 )
-                Text(
-                    text = "Real-Time Lyrics",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                AlbumArtwork(
-                    title = song.title,
-                    subtitle = uiState.artistsById[song.artistId]?.name.orEmpty(),
-                    palette = song.palette,
-                    artworkUri = song.artworkUri,
-                    fallbackMediaUri = song.mediaUri,
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .size(52.dp),
-                    shape = RectangleShape,
-                )
             }
-            GlassPanel(
+
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                shape = RectangleShape,
-                surfaceAlpha = 0.90f,
-                surfaceVariantAlpha = 0.84f,
-                borderAlpha = 0.14f,
+                contentAlignment = Alignment.Center,
             ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                Text(
-                                    text = song.title,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                )
-                                Text(
-                                    text = uiState.artistsById[song.artistId]?.name.orEmpty(),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            song.lyricsAttribution?.let { attribution ->
-                                Text(
-                                    text = attribution,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.secondary,
-                                )
-                            }
-                        }
-                        Row(
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            LyricsDisplayMode.entries.forEach { mode ->
-                                VerseFilterChip(
-                                    label = mode.label,
-                                    selected = mode == uiState.playback.lyricsDisplayMode,
-                                    onClick = { onModeSelected(mode) },
-                                )
-                            }
-                            VerseFilterChip(
-                                label = "Search lyrics",
-                                selected = uiState.manualLyricsSearch.isVisible,
-                                onClick = onManualSearchRequested,
-                            )
-                            if (showingSyncedLyrics && !followLiveLyrics) {
-                                VerseFilterChip(
-                                    label = "Jump live",
-                                    selected = false,
-                                    onClick = {
-                                        followLiveLyrics = true
-                                        coroutineScope.launch {
-                                            autoScrolling = true
-                                            listState.animateScrollToItem((activeIndex - 2).coerceAtLeast(0))
-                                            autoScrolling = false
-                                        }
-                                    },
-                                )
-                            }
-                        }
-                        if (uiState.playback.lyricsDisplayMode == LyricsDisplayMode.Synced && syncedLyrics.isEmpty() && plainLyrics.isNotEmpty()) {
-                            Text(
-                                text = "Only plain lyrics were found for this track, so timing is unavailable.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                    HorizontalDivider(
-                        thickness = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.30f),
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                    ) {
-                        if (lyricsStatus == LyricsLoadState.Loading && syncedLyrics.isEmpty() && plainLyrics.isEmpty()) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(24.dp),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
-                                Text(
-                                    text = "Fetching live lyrics for this song...",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(top = 18.dp),
-                                )
-                                Text(
-                                    text = "VerseFlow is matching this local file with online lyric timing.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 8.dp),
-                                )
-                            }
-                        } else if (showingSyncedLyrics) {
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 48.dp),
-                                verticalArrangement = Arrangement.spacedBy(24.dp),
-                            ) {
-                                itemsIndexed(syncedLyrics, key = { _, item -> item.timestampMs }) { index, line ->
-                                    LyricsLineChip(
-                                        text = line.text,
-                                        active = index == activeIndex,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RectangleShape,
-                                        showContainer = false,
-                                    )
-                                }
-                            }
-                        } else if (plainLyrics.isNotEmpty()) {
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 40.dp),
-                                verticalArrangement = Arrangement.spacedBy(24.dp),
-                            ) {
-                                itemsIndexed(plainLyrics, key = { index, line -> "$index-$line" }) { _, line ->
-                                    LyricsLineChip(
-                                        text = line,
-                                        active = false,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RectangleShape,
-                                        showContainer = false,
-                                    )
-                                }
-                            }
-                        } else {
-                            EmptyStatePanel(
-                                title = if (lyricsStatus == LyricsLoadState.Unavailable) {
-                                    "No lyrics found"
-                                } else {
-                                    "No synced lyrics available"
-                                },
-                                body = if (lyricsStatus == LyricsLoadState.Unavailable) {
-                                    "VerseFlow couldn't find a reliable lyrics match for this track from the current lyric sources."
-                                } else {
-                                    "This local track can play from your device, but VerseFlow doesn't have timed lyric data for it yet."
-                                },
-                                modifier = Modifier.fillMaxSize(),
-                                shape = RectangleShape,
-                            )
-                        }
-                    }
-                }
+                PhoneLyricsContent(
+                    showingSyncedLyrics = showingSyncedLyrics,
+                    visibleSyncedLines = visibleSyncedLines,
+                    activeIndex = activeIndex,
+                    plainLyrics = plainLyrics,
+                    lyricsStatus = lyricsStatus,
+                    onManualSearchRequested = onManualSearchRequested,
+                )
             }
-            HorizontalDivider(
-                thickness = 2.dp,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-            )
+
             GlassPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(bottom = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 shape = RectangleShape,
                 surfaceAlpha = 0.94f,
                 surfaceVariantAlpha = 0.88f,
@@ -417,42 +205,160 @@ fun LyricsScreen(
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    PlaybackProgress(
-                        positionMs = uiState.playback.positionMs,
-                        durationMs = song.durationMs,
-                        onSeek = onSeek,
-                    )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.Center,
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            GlowIconButton(
-                                icon = Icons.Rounded.SkipPrevious,
-                                contentDescription = "Previous",
-                                onClick = onPrevious,
-                            )
-                            GlowIconButton(
-                                icon = if (uiState.playback.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                contentDescription = "Play pause",
-                                onClick = onPlayPause,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                containerColor = MaterialTheme.colorScheme.primary,
-                            )
-                            GlowIconButton(
-                                icon = Icons.Rounded.SkipNext,
-                                contentDescription = "Next",
-                                onClick = onNext,
-                            )
-                        }
+                        Text(
+                            text = song.title,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        GlowIconButton(
+                            icon = Icons.Rounded.SkipPrevious,
+                            contentDescription = "Previous",
+                            onClick = onPrevious,
+                            modifier = Modifier.size(36.dp),
+                        )
+                        GlowIconButton(
+                            icon = if (uiState.playback.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            contentDescription = "Play / Pause",
+                            onClick = onPlayPause,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(36.dp),
+                        )
+                        GlowIconButton(
+                            icon = Icons.Rounded.SkipNext,
+                            contentDescription = "Next",
+                            onClick = onNext,
+                            modifier = Modifier.size(36.dp),
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = {
+                            val d = song.durationMs.coerceAtLeast(1L)
+                            (uiState.playback.positionMs.toFloat() / d.toFloat()).coerceIn(0f, 1f)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 6.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.46f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun visibleLyricLines(
+    syncedLyrics: List<LyricLine>,
+    activeIndex: Int,
+): List<IndexedValue<String>> {
+    if (syncedLyrics.isEmpty()) return emptyList()
+    val safeActiveIndex = activeIndex.coerceIn(0, syncedLyrics.lastIndex)
+    val startIndex = (safeActiveIndex - 1).coerceAtLeast(0)
+    return syncedLyrics
+        .drop(startIndex)
+        .take(3)
+        .mapIndexed { offset, line -> IndexedValue(startIndex + offset, line.text) }
+}
+
+@Composable
+private fun PhoneLyricsContent(
+    showingSyncedLyrics: Boolean,
+    visibleSyncedLines: List<IndexedValue<String>>,
+    activeIndex: Int,
+    plainLyrics: List<String>,
+    lyricsStatus: LyricsLoadState,
+    onManualSearchRequested: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 22.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        when {
+            lyricsStatus == LyricsLoadState.Loading && visibleSyncedLines.isEmpty() && plainLyrics.isEmpty() -> {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
+                    Text(
+                        text = "Finding lyrics...",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+
+            showingSyncedLyrics && visibleSyncedLines.isNotEmpty() -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(26.dp),
+                ) {
+                    visibleSyncedLines.forEach { line ->
+                        LyricsLineChip(
+                            text = line.value,
+                            active = line.index == activeIndex,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RectangleShape,
+                            showContainer = false,
+                        )
+                    }
+                }
+            }
+
+            plainLyrics.isNotEmpty() -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(26.dp),
+                ) {
+                    plainLyrics.take(3).forEachIndexed { index, line ->
+                        LyricsLineChip(
+                            text = line,
+                            active = index == 0,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RectangleShape,
+                            showContainer = false,
+                        )
+                    }
+                }
+            }
+
+            else -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    Text(
+                        text = if (lyricsStatus == LyricsLoadState.Unavailable) {
+                            "No lyrics found"
+                        } else {
+                            "Lyrics will appear here"
+                        },
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                    )
+                    TextButton(onClick = onManualSearchRequested) {
+                        Text("Search lyrics")
                     }
                 }
             }
@@ -466,7 +372,8 @@ private fun CarLyricsLayout(
     songTitle: String,
     artistName: String,
     artworkUriOverride: String?,
-    activeLine: String?,
+    activeIndex: Int,
+    visibleSyncedLines: List<IndexedValue<String>>,
     plainLyrics: List<String>,
     lyricsStatus: LyricsLoadState,
     onBack: () -> Unit,
@@ -474,150 +381,90 @@ private fun CarLyricsLayout(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
-    onModeSelected: (LyricsDisplayMode) -> Unit,
     onManualSearchRequested: () -> Unit,
 ) {
     val currentSong = uiState.playback.currentSong ?: return
-    val lineToShow = activeLine
-        ?: plainLyrics.firstOrNull()
+    val placeholderLine = plainLyrics.firstOrNull()
         ?: if (lyricsStatus == LyricsLoadState.Unavailable) {
             "No lyrics found for this song yet."
         } else {
             "Lyrics will appear here once VerseFlow matches this track."
         }
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .padding(horizontal = 24.dp, vertical = 18.dp),
-        horizontalArrangement = Arrangement.spacedBy(22.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column(
-            modifier = Modifier
-                .weight(0.62f)
-                .fillMaxHeight()
-                .padding(horizontal = 26.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Start,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
+            GlowIconButton(
+                icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = "Back",
+                onClick = onBack,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(horizontal = 28.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (visibleSyncedLines.isNotEmpty()) {
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.spacedBy(28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    GlowIconButton(
-                        icon = Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        onClick = onBack,
-                    )
-                    Text(
-                        text = "Lyrics",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    text = songTitle,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = artistName,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = lineToShow,
-                    style = MaterialTheme.typography.displaySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    LyricsDisplayMode.entries.forEach { mode ->
-                        VerseFilterChip(
-                            label = mode.label,
-                            selected = mode == uiState.playback.lyricsDisplayMode,
-                            onClick = { onModeSelected(mode) },
+                    visibleSyncedLines.forEach { line ->
+                        LyricsLineChip(
+                            text = line.value,
+                            active = line.index == activeIndex,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RectangleShape,
+                            showContainer = false,
                         )
                     }
-                    VerseFilterChip(
-                        label = "Search lyrics",
-                        selected = false,
-                        onClick = onManualSearchRequested,
-                    )
                 }
-                PlaybackProgress(
-                    positionMs = uiState.playback.positionMs,
-                    durationMs = currentSong.durationMs,
-                    onSeek = onSeek,
+            } else {
+                Text(
+                    text = placeholderLine,
+                    style = MaterialTheme.typography.displaySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
-        GlassPanel(
-            modifier = Modifier
-                .weight(0.38f)
-                .fillMaxHeight(),
-            shape = RectangleShape,
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 24.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.CenterHorizontally,
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    AlbumArtwork(
-                        title = songTitle,
-                        subtitle = artistName,
-                        palette = currentSong.palette,
-                        artworkUri = artworkUriOverride ?: currentSong.artworkUri,
-                        fallbackMediaUri = if (artworkUriOverride != null) null else currentSong.mediaUri,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight(),
-                        shape = RectangleShape,
-                    )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    GlowIconButton(
-                        icon = Icons.Rounded.SkipPrevious,
-                        contentDescription = "Previous",
-                        onClick = onPrevious,
-                    )
-                    GlowIconButton(
-                        icon = if (uiState.playback.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = "Play pause",
-                        onClick = onPlayPause,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        containerColor = MaterialTheme.colorScheme.primary,
-                    )
-                    GlowIconButton(
-                        icon = Icons.Rounded.SkipNext,
-                        contentDescription = "Next",
-                        onClick = onNext,
-                    )
-                }
+                GlowIconButton(
+                    icon = Icons.Rounded.SkipPrevious,
+                    contentDescription = "Previous",
+                    onClick = onPrevious,
+                )
+                Spacer(modifier = Modifier.width(18.dp))
+                GlowIconButton(
+                    icon = if (uiState.playback.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    contentDescription = "Play / Pause",
+                    onClick = onPlayPause,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(modifier = Modifier.width(18.dp))
+                GlowIconButton(
+                    icon = Icons.Rounded.SkipNext,
+                    contentDescription = "Next",
+                    onClick = onNext,
+                )
             }
         }
     }

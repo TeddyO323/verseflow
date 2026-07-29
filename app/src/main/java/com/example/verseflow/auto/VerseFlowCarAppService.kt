@@ -25,10 +25,14 @@ import androidx.media3.session.SessionToken
 import com.example.verseflow.VerseFlowPlaybackService
 import com.example.verseflow.data.CachedLyrics
 import com.example.verseflow.data.DeviceAudioCatalog
+import com.example.verseflow.data.DeviceCatalogCacheStore
 import com.example.verseflow.data.DeviceAudioStoreLoader
 import com.example.verseflow.data.LocalLyricsMetadataResolver
+import com.example.verseflow.data.LrcLibLyricsRepository
 import com.example.verseflow.data.LyricsCacheStore
+import com.example.verseflow.data.LyricsLookupResult
 import com.example.verseflow.model.Song
+import com.example.verseflow.model.SongSource
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +42,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
 class VerseFlowCarAppService : CarAppService() {
     override fun createHostValidator(): HostValidator = HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
@@ -137,17 +141,18 @@ private class VerseFlowLyricsScreen(
     }
 
     override fun onGetTemplate(): androidx.car.app.model.Template {
-        val lyricLine = playbackBridge.currentLyricLine()
-            ?.takeIf(String::isNotBlank)
-            ?: "No live lyric available for the current song"
+        val lyricLines = playbackBridge.currentLyricLines()
         val playPauseTitle = if (playbackBridge.isPlaying()) "Pause" else "Play"
 
-        val pane = Pane.Builder()
-            .addRow(
+        val paneBuilder = Pane.Builder()
+        lyricLines.forEach { line ->
+            paneBuilder.addRow(
                 Row.Builder()
-                    .setTitle(lyricLine)
+                    .setTitle(if (line.isActive) "Now: ${line.text}" else line.text)
                     .build(),
             )
+        }
+        val pane = paneBuilder
             .addAction(
                 Action.Builder()
                     .setTitle("Prev")
@@ -184,6 +189,8 @@ private class VerseFlowCarPlaybackBridge(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val lyricsCacheStore = LyricsCacheStore(carContext)
+    private val lyricsRepository = LrcLibLyricsRepository()
+    private val deviceCatalogCacheStore = DeviceCatalogCacheStore(carContext)
     private val deviceAudioLoader = DeviceAudioStoreLoader(carContext)
     private val listeners = linkedSetOf<() -> Unit>()
 
@@ -191,6 +198,7 @@ private class VerseFlowCarPlaybackBridge(
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var catalog: DeviceAudioCatalog? = null
     private var tickerJob: Job? = null
+    private val lyricLoadJobs = mutableMapOf<String, Job>()
 
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -208,9 +216,12 @@ private class VerseFlowCarPlaybackBridge(
 
     init {
         connectController()
+        catalog = deviceCatalogCacheStore.load()
         scope.launch(Dispatchers.IO) {
-            catalog = deviceAudioLoader.load()
-            notifyChanged()
+            val loadedCatalog = deviceAudioLoader.load()
+            deviceCatalogCacheStore.save(loadedCatalog)
+            catalog = loadedCatalog
+            withContext(Dispatchers.Main.immediate) { notifyChanged() }
         }
     }
 
@@ -233,7 +244,12 @@ private class VerseFlowCarPlaybackBridge(
     }
 
     fun currentLyricLine(): String? {
-        val song = currentSong() ?: return null
+        val lines = currentLyricLines()
+        return lines.firstOrNull { it.isActive }?.text ?: lines.firstOrNull()?.text
+    }
+
+    fun currentLyricLines(): List<VerseFlowCarLyricLine> {
+        val song = currentSong() ?: return emptyList()
         val positionMs = controller?.currentPosition?.coerceAtLeast(0L) ?: 0L
         val cached = lyricsCacheStore.load(song.mediaUri)
         val synced = cached?.syncedLyrics.orEmpty().filter { it.text.isNotBlank() }
@@ -241,17 +257,25 @@ private class VerseFlowCarPlaybackBridge(
             val activeIndex = synced.indexOfLast { it.timestampMs <= positionMs }
                 .takeIf { it >= 0 }
                 ?: 0
-            return synced[activeIndex].text
+            val start = (activeIndex - 1).coerceAtLeast(0)
+            return synced
+                .drop(start)
+                .take(3)
+                .mapIndexed { offset, line ->
+                    VerseFlowCarLyricLine(
+                        text = line.text,
+                        isActive = start + offset == activeIndex,
+                    )
+                }
         }
-        val plain = cached?.plainLyrics?.firstOrNull(String::isNotBlank)
-        if (!plain.isNullOrBlank()) return plain
-        if (song.mediaUri.isNullOrBlank()) return null
-        return runBlocking {
-            LocalLyricsMetadataResolver.loadPlainLyrics(
-                context = carContext,
-                mediaUri = song.mediaUri,
-            )
-        }.firstOrNull(String::isNotBlank)
+        val plainLyrics = cached?.plainLyrics.orEmpty().filter(String::isNotBlank)
+        if (plainLyrics.isNotEmpty()) {
+            return plainLyrics.take(3).mapIndexed { index, line ->
+                VerseFlowCarLyricLine(text = line, isActive = index == 0)
+            }
+        }
+        startLyricsFetch(song)
+        return listOf(VerseFlowCarLyricLine("Lyrics will appear once VerseFlow matches this track.", true))
     }
 
     fun currentArtistName(): String? {
@@ -292,9 +316,14 @@ private class VerseFlowCarPlaybackBridge(
 
     fun release() {
         tickerJob?.cancel()
+        lyricLoadJobs.values.forEach(Job::cancel)
+        lyricLoadJobs.clear()
         controller?.removeListener(playerListener)
-        controllerFuture?.let(MediaController::releaseFuture)
+        controller?.stop()
+        controller?.release()
         controller = null
+        controllerFuture?.let(MediaController::releaseFuture)
+        controllerFuture = null
         scope.cancel()
     }
 
@@ -317,6 +346,83 @@ private class VerseFlowCarPlaybackBridge(
         }
     }
 
+    private fun startLyricsFetch(song: Song) {
+        val mediaUri = song.mediaUri?.takeIf(String::isNotBlank) ?: return
+        if (song.source != SongSource.Local) return
+        if (lyricLoadJobs[mediaUri]?.isActive == true) return
+
+        lyricLoadJobs[mediaUri] = scope.launch(Dispatchers.IO) {
+            val embeddedPlainLyrics = LocalLyricsMetadataResolver.loadPlainLyrics(
+                context = carContext,
+                mediaUri = mediaUri,
+            )
+            if (embeddedPlainLyrics.isNotEmpty()) {
+                lyricsCacheStore.save(
+                    mediaUri = mediaUri,
+                    syncedLyrics = emptyList(),
+                    plainLyrics = embeddedPlainLyrics,
+                    attribution = "Embedded lyrics from local file",
+                )
+                withContext(Dispatchers.Main.immediate) { notifyChanged() }
+            }
+
+            val activeCatalog = catalog
+            val artistInputs = buildList {
+                activeCatalog?.artists?.firstOrNull { it.id == song.artistId }?.name?.let(::add)
+                addAll(song.artistCredits)
+            }.map(String::trim).filter(String::isNotBlank).distinct().take(2)
+            val albumTitle = activeCatalog?.albums?.firstOrNull { it.id == song.albumId }?.title
+
+            var result: LyricsLookupResult = LyricsLookupResult.NotFound
+            for (artistInput in artistInputs) {
+                val candidate = lyricsRepository.lookup(
+                    title = song.title,
+                    artistName = artistInput,
+                    albumTitle = albumTitle,
+                    durationMs = song.durationMs,
+                )
+                if (candidate is LyricsLookupResult.Found) {
+                    result = candidate
+                    break
+                }
+            }
+            if (result !is LyricsLookupResult.Found) {
+                for (artistInput in artistInputs) {
+                    val syncedCandidate = lyricsRepository.searchCandidates(
+                        title = song.title,
+                        artistName = artistInput,
+                        albumTitle = albumTitle,
+                        durationMs = song.durationMs,
+                        includePlainFallback = false,
+                    ).firstOrNull { it.hasSyncedLyrics }
+                    if (syncedCandidate != null) {
+                        result = LyricsLookupResult.Found(
+                            syncedLyrics = syncedCandidate.syncedLyrics,
+                            plainLyrics = if (syncedCandidate.plainLyrics.isNotEmpty()) {
+                                syncedCandidate.plainLyrics
+                            } else {
+                                syncedCandidate.syncedLyrics.map { it.text }
+                            },
+                            attribution = syncedCandidate.attribution,
+                        )
+                        break
+                    }
+                }
+            }
+
+            if (result is LyricsLookupResult.Found) {
+                lyricsCacheStore.save(
+                    mediaUri = mediaUri,
+                    syncedLyrics = result.syncedLyrics,
+                    plainLyrics = result.plainLyrics,
+                    attribution = result.attribution,
+                )
+            }
+            lyricLoadJobs.remove(mediaUri)
+            withContext(Dispatchers.Main.immediate) { notifyChanged() }
+        }
+    }
+
     private fun refreshTicker() {
         tickerJob?.cancel()
         val activeController = controller ?: return
@@ -333,3 +439,8 @@ private class VerseFlowCarPlaybackBridge(
         listeners.forEach { it.invoke() }
     }
 }
+
+private data class VerseFlowCarLyricLine(
+    val text: String,
+    val isActive: Boolean,
+)

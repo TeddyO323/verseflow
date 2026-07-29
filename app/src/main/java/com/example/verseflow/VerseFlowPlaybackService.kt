@@ -17,6 +17,7 @@ import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import com.example.verseflow.data.CachedLyrics
 import com.example.verseflow.data.DeviceAudioCatalog
+import com.example.verseflow.data.DeviceCatalogCacheStore
 import com.example.verseflow.data.DeviceAudioStoreLoader
 import com.example.verseflow.data.LocalLyricsMetadataResolver
 import com.example.verseflow.data.LyricsCacheStore
@@ -50,6 +51,7 @@ class VerseFlowPlaybackService : MediaLibraryService() {
     private var preservedSessionForTaskRemoval = false
 
     private val deviceAudioLoader by lazy { DeviceAudioStoreLoader(applicationContext) }
+    private val deviceCatalogCacheStore by lazy { DeviceCatalogCacheStore(applicationContext) }
     private val lyricsCacheStore by lazy { LyricsCacheStore(applicationContext) }
     private val playbackSessionStore by lazy { PlaybackSessionStore(applicationContext) }
 
@@ -458,7 +460,9 @@ class VerseFlowPlaybackService : MediaLibraryService() {
         cachedCatalog?.let { cached ->
             if (cached.songs.isNotEmpty()) return cached
         }
-        val loadedCatalog = runBlocking { deviceAudioLoader.load() }
+        val loadedCatalog = deviceCatalogCacheStore.load() ?: runBlocking {
+            deviceAudioLoader.load().also(deviceCatalogCacheStore::save)
+        }
         cachedCatalog = loadedCatalog
         return loadedCatalog
     }

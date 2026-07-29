@@ -6,12 +6,16 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -26,6 +30,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -71,6 +76,7 @@ import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.ViewModule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -113,6 +119,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.lerp
@@ -175,6 +182,8 @@ private val AuroraCyanBase = Color(0xFF66F2FF)
 private val FrostWhiteBase = Color(0xFFF5F7FF)
 private val MutedLavenderBase = Color(0xFFB5BDD6)
 private val SurfaceGlassBase = Color(0xFF0B0E17)
+
+private val artworkCache = java.util.concurrent.ConcurrentHashMap<Int, ImageBitmap>()
 
 private data class DesktopThemeTokens(
     val background: Color,
@@ -326,6 +335,18 @@ private fun desktopColorSchemeForTheme(themeName: String) = when (desktopThemeNa
         onSurface = FrostWhiteBase,
         onSurfaceVariant = Color(0xFFBAC7E5),
     )
+    "Prism Pulse" -> darkColorScheme(
+        primary = Color(0xFFFF5AD9),
+        secondary = Color(0xFF4CFBFF),
+        tertiary = Color(0xFFB8FF3B),
+        background = Color(0xFF04050A),
+        surface = Color(0xFF090B12),
+        surfaceVariant = Color(0xFF111523),
+        onPrimary = Color(0xFF150510),
+        onBackground = Color(0xFFE5DDFF),
+        onSurface = Color(0xFFF7D9FF),
+        onSurfaceVariant = Color(0xFFAEEFFF),
+    )
     "Arctic Light" -> lightColorScheme(
         primary = Color(0xFF3E7BFF),
         secondary = Color(0xFF2EA8C9),
@@ -423,57 +444,27 @@ private fun desktopImmersiveColorScheme(
     val base = palette.getOrElse(0) { VerseBlueBase }
     val support = palette.getOrElse(1) { AuroraCyanBase }
     val accent = palette.getOrElse(2) { NebulaBlueBase }
-    val isLight = desktopColorLuminance(base) > 0.52f
-    val primaryNeutral = if (isLight) Color(0xFF1C2128) else Color(0xFFE7EDF8)
-    val secondaryNeutral = if (isLight) Color(0xFF46515F) else Color(0xFFC9D3E2)
+    val dominantTone = lerp(accent, support, if (spotlight) 0.10f else 0.20f)
+    val primaryTone = lerp(accent, Color.White, if (spotlight) 0.08f else 0.14f)
+    val secondaryTone = lerp(support, Color.White, if (spotlight) 0.10f else 0.18f)
+    val tertiaryTone = lerp(base, accent, if (spotlight) 0.22f else 0.16f)
+    val backgroundTone = Color(0xFF050608)
+    val surfaceTone = lerp(Color(0xFF0A0B0E), dominantTone, if (spotlight) 0.06f else 0.03f)
+    val surfaceVariantTone = lerp(Color(0xFF111318), accent, if (spotlight) 0.10f else 0.05f)
+    val onPrimaryTone = if (desktopColorLuminance(primaryTone) > 0.58f) Color.Black else Color.White
 
-    return if (isLight) {
-        val primaryTone = lerp(
-            lerp(accent, Color.Black, if (spotlight) 0.14f else 0.30f),
-            primaryNeutral,
-            if (spotlight) 0.04f else 0.18f,
-        )
-        val secondaryTone = lerp(
-            lerp(support, Color.Black, if (spotlight) 0.12f else 0.24f),
-            secondaryNeutral,
-            if (spotlight) 0.05f else 0.16f,
-        )
-        lightColorScheme(
-            primary = primaryTone,
-            secondary = secondaryTone,
-            tertiary = lerp(base, accent, if (spotlight) 0.56f else 0.38f),
-            background = lerp(base, Color.White, if (spotlight) 0.82f else 0.92f),
-            surface = lerp(base, Color.White, if (spotlight) 0.88f else 0.95f),
-            surfaceVariant = lerp(lerp(base, support, 0.48f), Color.White, if (spotlight) 0.70f else 0.86f),
-            onPrimary = Color.White,
-            onBackground = Color(0xFF101216),
-            onSurface = Color(0xFF101216),
-            onSurfaceVariant = Color(0xFF505763),
-        )
-    } else {
-        val primaryTone = lerp(
-            lerp(accent, Color.White, if (spotlight) 0.08f else 0.20f),
-            primaryNeutral,
-            if (spotlight) 0.03f else 0.14f,
-        )
-        val secondaryTone = lerp(
-            lerp(support, Color.White, if (spotlight) 0.06f else 0.18f),
-            secondaryNeutral,
-            if (spotlight) 0.03f else 0.12f,
-        )
-        darkColorScheme(
-            primary = primaryTone,
-            secondary = secondaryTone,
-            tertiary = lerp(base, accent, if (spotlight) 0.62f else 0.38f),
-            background = lerp(base, Color.Black, if (spotlight) 0.58f else 0.80f),
-            surface = lerp(base, Color.Black, if (spotlight) 0.46f else 0.68f),
-            surfaceVariant = lerp(lerp(base, support, 0.42f), Color.Black, if (spotlight) 0.36f else 0.58f),
-            onPrimary = Color.Black,
-            onBackground = Color.White,
-            onSurface = Color.White,
-            onSurfaceVariant = Color(0xFFD2D8E3),
-        )
-    }
+    return darkColorScheme(
+        primary = primaryTone,
+        secondary = secondaryTone,
+        tertiary = tertiaryTone,
+        background = backgroundTone,
+        surface = surfaceTone,
+        surfaceVariant = surfaceVariantTone,
+        onPrimary = onPrimaryTone,
+        onBackground = Color.White,
+        onSurface = Color.White,
+        onSurfaceVariant = Color(0xFFD8DCE5),
+    )
 }
 
 private const val MIN_WIKIPEDIA_ARTIST_SCORE = 20
@@ -511,7 +502,9 @@ private enum class DesktopLibraryTab(val title: String) {
 private enum class DesktopCollectionViewMode {
     List,
     Grid,
+    Detailed,
 }
+
 
 private enum class DesktopAlbumSortMode(val label: String) {
     DateAdded("Date added"),
@@ -771,6 +764,17 @@ private enum class DesktopPreviewScenario(val label: String) {
     Settings("Settings"),
 }
 
+private enum class DesktopLyricsAppearanceMode(val label: String, val description: String) {
+    ParagraphHighlight(
+        "Paragraph Highlight",
+        "Show the surrounding lyrics and highlight the current line.",
+    ),
+    SingleLineMotion(
+        "Single Line Motion",
+        "Show one lyric line at a time with animated enter, pulse, and exit motion.",
+    ),
+}
+
 private data class DesktopPreviewData(
     val libraryState: DesktopLibraryUiState,
     val playHistoryEntries: List<DesktopPlayHistoryEntry>,
@@ -853,6 +857,7 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
             DesktopThemePreset("Black & White", "Strict monochrome theme with grayscale artwork"),
             DesktopThemePreset("White & Black", "Inverse monochrome theme with white-led surfaces"),
             DesktopThemePreset("Immersive Flow", "Live interface tint pulled from the currently playing album art"),
+            DesktopThemePreset("Prism Pulse", "Four-color neon glow theme that wakes up while music is playing"),
         )
     }
     val storedSettings = remember(desktopThemes) { appStore.loadSettings(desktopThemes.last().name) }
@@ -886,6 +891,12 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
     var homeScrolled by remember { mutableStateOf(false) }
     var displayName by remember { mutableStateOf(storedSettings.displayName) }
     var selectedTheme by remember { mutableStateOf(desktopThemeNameCompatibility(storedSettings.selectedTheme)) }
+    var lyricsAppearanceMode by remember {
+        mutableStateOf(
+            DesktopLyricsAppearanceMode.entries.firstOrNull { it.label == storedSettings.lyricsAppearance }
+                ?: DesktopLyricsAppearanceMode.ParagraphHighlight,
+        )
+    }
     var isShuffleEnabled by remember { mutableStateOf(storedSettings.isShuffleEnabled) }
     var isRepeatEnabled by remember { mutableStateOf(storedSettings.isRepeatEnabled) }
     var autoRescanEnabled by remember { mutableStateOf(storedSettings.autoRescanEnabled) }
@@ -2213,12 +2224,13 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
         }
     }
 
-    LaunchedEffect(displayName, selectedTheme, isShuffleEnabled, isRepeatEnabled, autoRescanEnabled, musixmatchApiKey, lastFmApiKey) {
+    LaunchedEffect(displayName, selectedTheme, lyricsAppearanceMode, isShuffleEnabled, isRepeatEnabled, autoRescanEnabled, musixmatchApiKey, lastFmApiKey) {
         if (!previewMode) {
             appStore.saveSettings(
                 DesktopSettingsSnapshot(
                     displayName = displayName,
                     selectedTheme = selectedTheme,
+                    lyricsAppearance = lyricsAppearanceMode.label,
                     isShuffleEnabled = isShuffleEnabled,
                     isRepeatEnabled = isRepeatEnabled,
                     autoRescanEnabled = autoRescanEnabled,
@@ -2489,6 +2501,15 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
                 if (section == DesktopSection.NowPlaying || section == DesktopSection.Lyrics) {
                     DesktopAppBackdrop(track = currentTrack)
                 }
+                if (desktopThemeNameCompatibility(selectedTheme) == "Prism Pulse") {
+                    DesktopPrismPulseBackdrop(
+                        isPlaying = playbackState.isPlaying,
+                        energyLevel = playbackState.energyLevel,
+                        bassLevel = playbackState.bassLevel,
+                        midLevel = playbackState.midLevel,
+                        trebleLevel = playbackState.trebleLevel,
+                    )
+                }
                 Row(modifier = Modifier.fillMaxSize()) {
                     DesktopSidebar(
                         items = sidebarItems,
@@ -2623,6 +2644,7 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
                                         libraryPaths = libraryState.sourcePaths,
                                         trackCount = tracks.size,
                                         currentTrack = currentTrack,
+                                        recentTracks = recentTracks,
                                         isScanning = libraryState.isScanning,
                                     errorMessage = libraryState.errorMessage,
                                     albumsViewMode = albumsViewMode,
@@ -2772,6 +2794,7 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
                                 DesktopSection.NowPlaying -> DesktopNowPlaying(
                                     track = currentTrack,
                                     isPlaying = playbackState.isPlaying,
+                                    bassLevel = playbackState.bassLevel,
                                     progress = if (currentDurationMs == 0L || currentTrack == null) 0f else playbackState.positionMs.toFloat() / currentDurationMs.toFloat(),
                                     positionMs = playbackState.positionMs,
                                     errorMessage = playbackState.errorMessage,
@@ -2805,6 +2828,7 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
                                     track = currentTrack,
                                     progressMs = playbackState.positionMs,
                                     lyricsStatus = currentTrack?.id?.let { lyricsStatuses[it] } ?: DesktopLyricsLoadState.Idle,
+                                    lyricsAppearanceMode = lyricsAppearanceMode,
                                     onSeekTo = { targetMs -> playbackController.seekTo(targetMs) },
                                     onBackToPlayer = { section = DesktopSection.NowPlaying },
                                     onOpenManualSearch = {
@@ -2825,6 +2849,8 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
                                     selectedTheme = selectedTheme,
                                     themes = desktopThemes,
                                     onThemeSelect = { selectedTheme = it },
+                                    lyricsAppearanceMode = lyricsAppearanceMode,
+                                    onLyricsAppearanceModeSelect = { lyricsAppearanceMode = it },
                                     autoRescanEnabled = autoRescanEnabled,
                                     onAutoRescanChange = { autoRescanEnabled = it },
                                     musixmatchApiKey = musixmatchApiKey,
@@ -3054,6 +3080,7 @@ fun VerseFlowDesktopApp(previewMode: Boolean = false) {
                         DesktopMiniPlayer(
                             track = currentTrack,
                             isPlaying = playbackState.isPlaying,
+                            bassLevel = playbackState.bassLevel,
                             progress = if (currentDurationMs == 0L) 0f else playbackState.positionMs.toFloat() / currentDurationMs.toFloat(),
                             positionMs = playbackState.positionMs,
                             onOpenNowPlaying = ::openNowPlaying,
@@ -3902,6 +3929,7 @@ private fun DesktopLibrary(
     libraryPaths: List<String>,
     trackCount: Int,
     currentTrack: DesktopTrack?,
+    recentTracks: List<DesktopTrack>,
     isScanning: Boolean,
     errorMessage: String?,
     albumsViewMode: DesktopCollectionViewMode,
@@ -4034,7 +4062,7 @@ private fun DesktopLibrary(
 
     val isLibraryChromeCollapsed = when (selectedTab) {
         DesktopLibraryTab.Songs -> songsListState.firstVisibleItemIndex > 0 || songsListState.firstVisibleItemScrollOffset > 8
-        DesktopLibraryTab.Albums -> if (albumsViewMode == DesktopCollectionViewMode.Grid) {
+        DesktopLibraryTab.Albums -> if (albumsViewMode == DesktopCollectionViewMode.Grid || albumsViewMode == DesktopCollectionViewMode.Detailed) {
             albumGridState.firstVisibleItemIndex > 0 || albumGridState.firstVisibleItemScrollOffset > 8
         } else {
             albumsListState.firstVisibleItemIndex > 0 || albumsListState.firstVisibleItemScrollOffset > 8
@@ -4072,6 +4100,8 @@ private fun DesktopLibrary(
         filteredGenres,
         albumTrackMap,
         genreTrackMap,
+        albums,
+        recentTracks,
     ) {
         when (selectedTab) {
             DesktopLibraryTab.Songs -> {
@@ -4089,10 +4119,16 @@ private fun DesktopLibrary(
                 )
             }
             DesktopLibraryTab.Albums -> {
-                if (albumsViewMode == DesktopCollectionViewMode.Grid) {
+                if (albumsViewMode == DesktopCollectionViewMode.Grid || albumsViewMode == DesktopCollectionViewMode.Detailed) {
                     null
                 } else {
-                    val album = filteredAlbums.firstOrNull()
+                    val playingAlbum = currentTrack?.let { track ->
+                        albums.firstOrNull { it.title == track.album && it.artist == track.albumArtist }
+                    }
+                    val lastPlayedAlbum = playingAlbum ?: recentTracks.firstNotNullOfOrNull { track ->
+                        albums.firstOrNull { it.title == track.album && it.artist == track.albumArtist }
+                    }
+                    val album = lastPlayedAlbum ?: filteredAlbums.firstOrNull()
                     DesktopFocusPanel(
                         title = album?.title ?: "No albums found",
                         subtitle = album?.artist ?: "Try a different search or rescan another folder.",
@@ -4196,10 +4232,10 @@ private fun DesktopLibrary(
                         viewMode = albumsViewMode,
                         onToggleViewMode = {
                             onAlbumsViewModeChange(
-                                if (albumsViewMode == DesktopCollectionViewMode.List) {
-                                    DesktopCollectionViewMode.Grid
-                                } else {
-                                    DesktopCollectionViewMode.List
+                                when (albumsViewMode) {
+                                    DesktopCollectionViewMode.List -> DesktopCollectionViewMode.Grid
+                                    DesktopCollectionViewMode.Grid -> DesktopCollectionViewMode.Detailed
+                                    DesktopCollectionViewMode.Detailed -> DesktopCollectionViewMode.List
                                 },
                             )
                         },
@@ -4239,7 +4275,7 @@ private fun DesktopLibrary(
             ) {
                 val libraryCardPadding by animateDpAsState(
                     targetValue = if (
-                        (selectedTab == DesktopLibraryTab.Albums && albumsViewMode == DesktopCollectionViewMode.Grid) ||
+                        (selectedTab == DesktopLibraryTab.Albums && (albumsViewMode == DesktopCollectionViewMode.Grid || albumsViewMode == DesktopCollectionViewMode.Detailed)) ||
                         (selectedTab == DesktopLibraryTab.Artists && artistsViewMode == DesktopCollectionViewMode.Grid)
                     ) 0.dp else 22.dp,
                     label = "libraryCardPadding",
@@ -4276,10 +4312,10 @@ private fun DesktopLibrary(
                                     viewMode = albumsViewMode,
                                     onToggleViewMode = {
                                         onAlbumsViewModeChange(
-                                            if (albumsViewMode == DesktopCollectionViewMode.List) {
-                                                DesktopCollectionViewMode.Grid
-                                            } else {
-                                                DesktopCollectionViewMode.List
+                                            when (albumsViewMode) {
+                                                DesktopCollectionViewMode.List -> DesktopCollectionViewMode.Grid
+                                                DesktopCollectionViewMode.Grid -> DesktopCollectionViewMode.Detailed
+                                                DesktopCollectionViewMode.Detailed -> DesktopCollectionViewMode.List
                                             },
                                         )
                                     },
@@ -4347,37 +4383,58 @@ private fun DesktopLibrary(
                             }
                         }
                         DesktopLibraryTab.Albums -> {
-                            if (albumsViewMode == DesktopCollectionViewMode.Grid) {
-                                LazyVerticalGrid(
-                                    modifier = Modifier.fillMaxSize(),
-                                    state = albumGridState,
-                                    columns = GridCells.Adaptive(minSize = 132.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                                ) {
-                                    items(filteredAlbums, key = { "${it.artist}::${it.title}" }) { album ->
-                                        DesktopAlbumGridTile(
-                                            album = album,
-                                            selected = currentTrack?.album == album.title && currentTrack.albumArtist == album.artist,
-                                            onClick = { onOpenAlbum(album) },
-                                        )
+                            when (albumsViewMode) {
+                                DesktopCollectionViewMode.Grid -> {
+                                    LazyVerticalGrid(
+                                        modifier = Modifier.fillMaxSize(),
+                                        state = albumGridState,
+                                        columns = GridCells.Adaptive(minSize = 132.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                                    ) {
+                                        items(filteredAlbums, key = { "${it.artist}::${it.title}" }) { album ->
+                                            DesktopAlbumGridTile(
+                                                album = album,
+                                                selected = currentTrack?.album == album.title && currentTrack.albumArtist == album.artist,
+                                                onClick = { onOpenAlbum(album) },
+                                            )
+                                        }
                                     }
                                 }
-                            } else {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    state = albumsListState,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    items(filteredAlbums) { album ->
-                                        DesktopCollectionRow(
-                                            title = album.title,
-                                            subtitle = album.artist,
-                                            supporting = "${album.trackCount} songs • ${album.genre}",
-                                            palette = album.palette,
-                                            artworkBytes = album.artworkBytes,
-                                            onClick = { onOpenAlbum(album) },
-                                        )
+                                DesktopCollectionViewMode.Detailed -> {
+                                    LazyVerticalGrid(
+                                        modifier = Modifier.fillMaxSize(),
+                                        state = albumGridState,
+                                        columns = GridCells.Adaptive(minSize = 144.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                                        contentPadding = PaddingValues(16.dp),
+                                    ) {
+                                        items(filteredAlbums, key = { "${it.artist}::${it.title}" }) { album ->
+                                            DesktopAlbumDetailedGridTile(
+                                                album = album,
+                                                selected = currentTrack?.album == album.title && currentTrack.albumArtist == album.artist,
+                                                onClick = { onOpenAlbum(album) },
+                                            )
+                                        }
+                                    }
+                                }
+                                DesktopCollectionViewMode.List -> {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        state = albumsListState,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        items(filteredAlbums) { album ->
+                                            DesktopCollectionRow(
+                                                title = album.title,
+                                                subtitle = album.artist,
+                                                supporting = "${album.trackCount} songs • ${album.genre}",
+                                                palette = album.palette,
+                                                artworkBytes = album.artworkBytes,
+                                                onClick = { onOpenAlbum(album) },
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -5338,6 +5395,7 @@ private fun DesktopHistoryTrackRow(
 private fun DesktopNowPlaying(
     track: DesktopTrack?,
     isPlaying: Boolean,
+    bassLevel: Float,
     progress: Float,
     positionMs: Long,
     errorMessage: String?,
@@ -5368,20 +5426,43 @@ private fun DesktopNowPlaying(
     var seekPositionMs by remember(track.id) { mutableFloatStateOf(positionMs.toFloat()) }
     val durationValue = track.durationMs.coerceAtLeast(1L).toFloat()
     val immersiveNowPlaying = desktopThemeNameCompatibility(desktopThemeForArtwork) == "Immersive Flow"
-    val playerAccent = if (immersiveNowPlaying) {
+    val prismNowPlaying = desktopThemeNameCompatibility(desktopThemeForArtwork) == "Prism Pulse"
+    val bassPulse by animateFloatAsState(
+        targetValue = if (prismNowPlaying && isPlaying) bassLevel.coerceIn(0f, 1f) else 0f,
+        animationSpec = tween(durationMillis = 120),
+        label = "desktopNowPlayingBassPulse",
+    )
+    val playerAccent = if (immersiveNowPlaying || prismNowPlaying) {
         lerp(
             track.palette.getOrElse(2) { track.palette.getOrElse(0) { VerseBlue } },
             track.palette.getOrElse(0) { VerseBlue },
-            0.12f,
+            if (prismNowPlaying) 0.06f else 0.12f,
         )
     } else {
         VerseBlue
     }
-    val playerAccentStrong = if (immersiveNowPlaying) lerp(playerAccent, Color.White, 0.06f) else playerAccent
-    val playerAccentSoft = if (immersiveNowPlaying) playerAccent.copy(alpha = 0.24f) else playerAccent.copy(alpha = 0.22f)
-    val playerAccentSoftEmphasis = if (immersiveNowPlaying) playerAccent.copy(alpha = 0.18f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
-    val playerInactiveTrack = if (immersiveNowPlaying) playerAccent.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.12f)
-    val playerSecondary = if (immersiveNowPlaying) lerp(playerAccent, MaterialTheme.colorScheme.secondary, 0.35f) else MaterialTheme.colorScheme.secondary
+    val playerAccentStrong = when {
+        prismNowPlaying -> lerp(playerAccent, Color.White, 0.08f + bassPulse * 0.16f)
+        immersiveNowPlaying -> lerp(playerAccent, Color.White, 0.06f)
+        else -> playerAccent
+    }
+    val playerAccentSoft = when {
+        prismNowPlaying -> playerAccent.copy(alpha = 0.16f + bassPulse * 0.20f)
+        immersiveNowPlaying -> playerAccent.copy(alpha = 0.24f)
+        else -> playerAccent.copy(alpha = 0.22f)
+    }
+    val playerAccentSoftEmphasis = when {
+        prismNowPlaying -> playerAccent.copy(alpha = 0.12f + bassPulse * 0.18f)
+        immersiveNowPlaying -> playerAccent.copy(alpha = 0.18f)
+        else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
+    }
+    val playerInactiveTrack = when {
+        prismNowPlaying -> playerAccent.copy(alpha = 0.08f + bassPulse * 0.12f)
+        immersiveNowPlaying -> playerAccent.copy(alpha = 0.16f)
+        else -> Color.White.copy(alpha = 0.12f)
+    }
+    val playerSecondary = if (immersiveNowPlaying || prismNowPlaying) lerp(playerAccent, MaterialTheme.colorScheme.secondary, 0.35f) else MaterialTheme.colorScheme.secondary
+    val bassScale = 1f + bassPulse * 0.18f
 
     LaunchedEffect(track.id, positionMs) {
         if (!isSeeking) {
@@ -5549,9 +5630,26 @@ private fun DesktopNowPlaying(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onPrevious) {
-                        Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous", tint = playerAccentStrong)
+                        Icon(
+                            Icons.Rounded.SkipPrevious,
+                            contentDescription = "Previous",
+                            tint = playerAccentStrong,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = 1f + bassPulse * 0.06f
+                                scaleY = 1f + bassPulse * 0.06f
+                            },
+                        )
                     }
-                    IconButton(onClick = onPlayPause, modifier = Modifier.size(72.dp)) {
+                    IconButton(
+                        onClick = onPlayPause,
+                        modifier = Modifier
+                            .size(72.dp)
+                            .graphicsLayer {
+                                scaleX = bassScale
+                                scaleY = bassScale
+                                alpha = 0.90f + bassPulse * 0.10f
+                            },
+                    ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Rounded.PauseCircle else Icons.Rounded.PlayArrow,
                             contentDescription = "Play pause",
@@ -5560,7 +5658,15 @@ private fun DesktopNowPlaying(
                         )
                     }
                     IconButton(onClick = onNext) {
-                        Icon(Icons.Rounded.SkipNext, contentDescription = "Next", tint = playerAccentStrong)
+                        Icon(
+                            Icons.Rounded.SkipNext,
+                            contentDescription = "Next",
+                            tint = playerAccentStrong,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = 1f + bassPulse * 0.06f
+                                scaleY = 1f + bassPulse * 0.06f
+                            },
+                        )
                     }
                 }
             }
@@ -6665,6 +6771,7 @@ private fun DesktopPlaylistTrackRow(
 private fun DesktopMiniPlayer(
     track: DesktopTrack,
     isPlaying: Boolean,
+    bassLevel: Float,
     progress: Float,
     positionMs: Long,
     onOpenNowPlaying: () -> Unit,
@@ -6672,6 +6779,24 @@ private fun DesktopMiniPlayer(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
 ) {
+    val prismMiniPlayer = desktopThemeNameCompatibility(desktopThemeForArtwork) == "Prism Pulse"
+    val bassPulse by animateFloatAsState(
+        targetValue = if (prismMiniPlayer && isPlaying) bassLevel.coerceIn(0f, 1f) else 0f,
+        animationSpec = tween(durationMillis = 120),
+        label = "desktopMiniPlayerBassPulse",
+    )
+    val miniAccent = if (prismMiniPlayer) {
+        lerp(
+            track.palette.getOrElse(2) { track.palette.getOrElse(0) { VerseBlue } },
+            track.palette.getOrElse(0) { VerseBlue },
+            0.06f,
+        )
+    } else {
+        VerseBlue
+    }
+    val miniAccentStrong = if (prismMiniPlayer) lerp(miniAccent, Color.White, 0.08f + bassPulse * 0.16f) else miniAccent
+    val miniTrackColor = if (prismMiniPlayer) miniAccent.copy(alpha = 0.08f + bassPulse * 0.12f) else Color.White.copy(alpha = 0.08f)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = SurfaceGlass),
@@ -6684,8 +6809,8 @@ private fun DesktopMiniPlayer(
             LinearProgressIndicator(
                 progress = { progress.coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth().height(3.dp),
-                color = VerseBlue,
-                trackColor = Color.White.copy(alpha = 0.08f),
+                color = miniAccentStrong,
+                trackColor = miniTrackColor,
             )
             Row(
                 modifier = Modifier
@@ -6725,18 +6850,40 @@ private fun DesktopMiniPlayer(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onPrevious) {
-                        Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous", tint = FrostWhite)
+                        Icon(
+                            Icons.Rounded.SkipPrevious,
+                            contentDescription = "Previous",
+                            tint = if (prismMiniPlayer) miniAccentStrong else FrostWhite,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = 1f + bassPulse * 0.06f
+                                scaleY = 1f + bassPulse * 0.06f
+                            },
+                        )
                     }
-                    IconButton(onClick = onPlayPause) {
+                    IconButton(
+                        onClick = onPlayPause,
+                        modifier = Modifier.graphicsLayer {
+                            scaleX = 1f + bassPulse * 0.14f
+                            scaleY = 1f + bassPulse * 0.14f
+                        },
+                    ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Rounded.PauseCircle else Icons.Rounded.PlayArrow,
                             contentDescription = "Play pause",
-                            tint = VerseBlue,
+                            tint = miniAccentStrong,
                             modifier = Modifier.size(34.dp),
                         )
                     }
                     IconButton(onClick = onNext) {
-                        Icon(Icons.Rounded.SkipNext, contentDescription = "Next", tint = FrostWhite)
+                        Icon(
+                            Icons.Rounded.SkipNext,
+                            contentDescription = "Next",
+                            tint = if (prismMiniPlayer) miniAccentStrong else FrostWhite,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = 1f + bassPulse * 0.06f
+                                scaleY = 1f + bassPulse * 0.06f
+                            },
+                        )
                     }
                 }
             }
@@ -6750,6 +6897,7 @@ private fun DesktopLyrics(
     track: DesktopTrack?,
     progressMs: Long,
     lyricsStatus: DesktopLyricsLoadState,
+    lyricsAppearanceMode: DesktopLyricsAppearanceMode,
     onSeekTo: (Long) -> Unit,
     onBackToPlayer: () -> Unit,
     onOpenManualSearch: () -> Unit,
@@ -6843,23 +6991,36 @@ private fun DesktopLyrics(
                     )
                 }
                 track.lyrics.isNotEmpty() -> {
-                    LazyColumn(
-                        state = lyricsListState,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        itemsIndexed(track.lyrics) { index, line ->
-                            val isActive = index == activeLyricIndex
-                            Text(
-                                text = line.text,
-                                color = if (isActive) activeLyricColor else inactiveLyricColor,
-                                fontSize = if (isActive) 22.sp else 18.sp,
-                                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onSeekTo(line.timestampMs) }
-                                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                    when (lyricsAppearanceMode) {
+                        DesktopLyricsAppearanceMode.ParagraphHighlight -> {
+                            LazyColumn(
+                                state = lyricsListState,
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                itemsIndexed(track.lyrics) { index, line ->
+                                    val isActive = index == activeLyricIndex
+                                    Text(
+                                        text = line.text,
+                                        color = if (isActive) activeLyricColor else inactiveLyricColor,
+                                        fontSize = if (isActive) 22.sp else 18.sp,
+                                        fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { onSeekTo(line.timestampMs) }
+                                            .padding(horizontal = 18.dp, vertical = 10.dp),
+                                    )
+                                }
+                            }
+                        }
+                        DesktopLyricsAppearanceMode.SingleLineMotion -> {
+                            DesktopAnimatedSingleLineLyrics(
+                                lines = track.lyrics,
+                                activeIndex = activeLyricIndex,
+                                onSeekTo = onSeekTo,
+                                activeColor = activeLyricColor,
+                                supportColor = inactiveLyricColor,
                             )
                         }
                     }
@@ -6899,6 +7060,106 @@ private fun DesktopLyrics(
                     )
                 }
             }
+    }
+}
+
+@Composable
+private fun ColumnScope.DesktopAnimatedSingleLineLyrics(
+    lines: List<DesktopLyricLine>,
+    activeIndex: Int,
+    onSeekTo: (Long) -> Unit,
+    activeColor: Color,
+    supportColor: Color,
+) {
+    val activeLine = lines.getOrNull(activeIndex)
+    val pulseTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "desktopSingleLinePulse")
+    val pulseScale by pulseTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.02f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "desktopSingleLinePulseScale",
+    )
+    val pulseGlow by pulseTransition.animateFloat(
+        initialValue = 0.12f,
+        targetValue = 0.22f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "desktopSingleLinePulseGlow",
+    )
+    var tiltSeed by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(activeIndex) {
+        tiltSeed = 6f
+        kotlinx.coroutines.delay(60)
+        tiltSeed = 0f
+    }
+
+    val tiltRotation by animateFloatAsState(
+        targetValue = tiltSeed,
+        animationSpec = tween(durationMillis = 320),
+        label = "desktopSingleLineTilt",
+    )
+
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxWidth(),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (activeLine == null) {
+            Text(
+                text = "No synced line is active yet.",
+                color = supportColor,
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+            )
+        } else {
+            AnimatedContent(
+                targetState = activeLine,
+                transitionSpec = {
+                    (slideInHorizontally(
+                        animationSpec = tween(360),
+                        initialOffsetX = { fullWidth -> fullWidth / 3 },
+                    ) + fadeIn(animationSpec = tween(320))) togetherWith
+                        (slideOutHorizontally(
+                            animationSpec = tween(300),
+                            targetOffsetX = { fullWidth -> -(fullWidth / 3) },
+                        ) + fadeOut(animationSpec = tween(240)))
+                },
+                label = "desktopSingleLineLyrics",
+            ) { line ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 48.dp)
+                        .clickable { onSeekTo(line.timestampMs) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = line.text,
+                        color = activeColor,
+                        style = MaterialTheme.typography.displaySmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .graphicsLayer {
+                                scaleX = pulseScale
+                                scaleY = pulseScale
+                                rotationZ = tiltRotation
+                            }
+                            .background(
+                                color = activeColor.copy(alpha = pulseGlow),
+                                shape = RoundedCornerShape(28.dp),
+                            )
+                            .padding(horizontal = 28.dp, vertical = 22.dp),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -7307,6 +7568,8 @@ private fun DesktopSettings(
     selectedTheme: String,
     themes: List<DesktopThemePreset>,
     onThemeSelect: (String) -> Unit,
+    lyricsAppearanceMode: DesktopLyricsAppearanceMode,
+    onLyricsAppearanceModeSelect: (DesktopLyricsAppearanceMode) -> Unit,
     autoRescanEnabled: Boolean,
     onAutoRescanChange: (Boolean) -> Unit,
     musixmatchApiKey: String,
@@ -7425,6 +7688,23 @@ private fun DesktopSettings(
                         style = MaterialTheme.typography.bodySmall,
                         color = MutedLavender,
                     )
+                    SectionLabel("Lyrics appearance")
+                    DesktopLyricsAppearanceMode.entries.forEach { mode ->
+                        val selected = mode == lyricsAppearanceMode
+                        Surface(
+                            color = if (selected) Color(0xFF101A38) else DeepSpace,
+                            shape = RectangleShape,
+                            modifier = Modifier.fillMaxWidth().clickable { onLyricsAppearanceModeSelect(mode) },
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(mode.label, color = FrostWhite, style = MaterialTheme.typography.titleMedium)
+                                Text(mode.description, color = MutedLavender, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
                 }
             }
             Card(
@@ -8068,8 +8348,16 @@ private fun DesktopAlbumsHeaderActions(
         }
         IconButton(onClick = onToggleViewMode) {
             Icon(
-                imageVector = if (viewMode == DesktopCollectionViewMode.List) Icons.Rounded.GridView else Icons.Rounded.ViewList,
-                contentDescription = if (viewMode == DesktopCollectionViewMode.List) "Show album grid" else "Show album list",
+                imageVector = when (viewMode) {
+                    DesktopCollectionViewMode.List -> Icons.Rounded.GridView
+                    DesktopCollectionViewMode.Grid -> Icons.Rounded.ViewModule
+                    DesktopCollectionViewMode.Detailed -> Icons.Rounded.ViewList
+                },
+                contentDescription = when (viewMode) {
+                    DesktopCollectionViewMode.List -> "Show album grid"
+                    DesktopCollectionViewMode.Grid -> "Show album detailed grid"
+                    DesktopCollectionViewMode.Detailed -> "Show album list"
+                },
                 tint = MutedLavender,
             )
         }
@@ -8225,6 +8513,91 @@ private fun DesktopAlbumGridTile(
         }
     }
 }
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun DesktopAlbumDetailedGridTile(
+    album: DesktopAlbumSummary,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    var isHovered by remember(album.title, album.artist) { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerMoveFilter(
+                onEnter = {
+                    isHovered = true
+                    false
+                },
+                onExit = {
+                    isHovered = false
+                    false
+                },
+            )
+            .clickable(onClick = onClick)
+            .padding(4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f),
+        ) {
+            DesktopArtworkPanel(
+                palette = album.palette,
+                artworkBytes = album.artworkBytes,
+                label = album.title.take(1),
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(VerseBlue.copy(alpha = 0.15f)),
+                )
+            }
+            if (isHovered) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.25f)),
+                )
+            }
+        }
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = album.title,
+                color = if (selected) VerseBlue else FrostWhite,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = FontFamily.SansSerif,
+            )
+            Text(
+                text = album.artist,
+                color = MutedLavender,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = FontFamily.SansSerif,
+            )
+            Text(
+                text = "${album.trackCount} songs • ${album.genre}",
+                color = MutedLavender.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = FontFamily.SansSerif,
+            )
+        }
+    }
+}
+
 
 @Composable
 private fun DesktopTrackOverflowMenu(
@@ -8624,9 +8997,21 @@ private fun DesktopAppBackdrop(track: DesktopTrack?) {
         track?.palette ?: listOf(InkBlack, Color(0xFF060B1B), Color(0xFF0A1226))
     }
     val artwork = rememberArtworkBitmap(track?.artworkBytes)
-    val baseTone = palette.firstOrNull() ?: InkBlack
-    val midTone = palette.getOrNull(1) ?: Color(0xFF08101F)
-    val highlightTone = palette.lastOrNull() ?: AuroraCyan
+    val baseTone = if (isDesktopMonochromeTheme(desktopThemeForArtwork)) {
+        Color(0xFF000000)
+    } else {
+        (palette.firstOrNull() ?: InkBlack).darken(0.34f)
+    }
+    val midTone = if (isDesktopMonochromeTheme(desktopThemeForArtwork)) {
+        Color(0xFF111111)
+    } else {
+        (palette.getOrNull(1) ?: Color(0xFF08101F)).darken(0.08f)
+    }
+    val highlightTone = if (isDesktopMonochromeTheme(desktopThemeForArtwork)) {
+        Color(0xFF2B2B2B)
+    } else {
+        (palette.lastOrNull() ?: AuroraCyan).lighten(0.18f)
+    }
 
     Box(
         modifier = Modifier
@@ -8694,6 +9079,140 @@ private fun DesktopAppBackdrop(track: DesktopTrack?) {
                         ),
                     ),
                 ),
+        )
+    }
+}
+
+@Composable
+private fun DesktopPrismPulseBackdrop(
+    isPlaying: Boolean,
+    energyLevel: Float,
+    bassLevel: Float,
+    midLevel: Float,
+    trebleLevel: Float,
+) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "desktopPrismPulse")
+    val animatedPhaseA by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 5200),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "desktopPrismPhaseA",
+    )
+    val animatedPhaseB by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 6800),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "desktopPrismPhaseB",
+    )
+    val animatedGlow by transition.animateFloat(
+        initialValue = 0.18f,
+        targetValue = 0.34f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "desktopPrismGlow",
+    )
+
+    val phaseA = if (isPlaying) animatedPhaseA else 0.35f
+    val phaseB = if (isPlaying) animatedPhaseB else 0.62f
+    val animatedEnergy by animateFloatAsState(
+        targetValue = if (isPlaying) energyLevel else 0.18f,
+        animationSpec = tween(durationMillis = 180),
+        label = "desktopPrismEnergy",
+    )
+    val animatedBass by animateFloatAsState(
+        targetValue = if (isPlaying) bassLevel else 0.22f,
+        animationSpec = tween(durationMillis = 140),
+        label = "desktopPrismBass",
+    )
+    val animatedMid by animateFloatAsState(
+        targetValue = if (isPlaying) midLevel else 0.18f,
+        animationSpec = tween(durationMillis = 160),
+        label = "desktopPrismMid",
+    )
+    val animatedTreble by animateFloatAsState(
+        targetValue = if (isPlaying) trebleLevel else 0.20f,
+        animationSpec = tween(durationMillis = 140),
+        label = "desktopPrismTreble",
+    )
+    val glowAlpha = if (isPlaying) {
+        (0.16f + animatedGlow * 0.35f + animatedEnergy * 0.22f).coerceIn(0.18f, 0.62f)
+    } else {
+        0.22f
+    }
+    val magenta = Color(0xFFFF46CF)
+    val cyan = Color(0xFF48F6FF)
+    val lime = Color(0xFFB5FF2E)
+    val amber = Color(0xFFFFA12F)
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer(alpha = 0.92f),
+    ) {
+        val radiusLarge = size.minDimension * (0.36f + animatedBass * 0.16f)
+        val radiusMedium = size.minDimension * (0.26f + animatedMid * 0.16f)
+        val radiusSmall = size.minDimension * (0.20f + animatedTreble * 0.16f)
+        val magentaCenter = Offset(
+            size.width * (0.18f + 0.08f * phaseA + animatedBass * 0.04f),
+            size.height * (0.16f + 0.06f * phaseB - animatedBass * 0.03f),
+        )
+        val cyanCenter = Offset(
+            size.width * (0.82f - 0.09f * phaseB + animatedTreble * 0.03f),
+            size.height * (0.22f + 0.08f * phaseA - animatedTreble * 0.02f),
+        )
+        val limeCenter = Offset(
+            size.width * (0.26f + 0.07f * phaseB - animatedMid * 0.02f),
+            size.height * (0.78f - 0.08f * phaseA - animatedMid * 0.03f),
+        )
+        val amberCenter = Offset(
+            size.width * (0.74f - 0.06f * phaseA + animatedEnergy * 0.03f),
+            size.height * (0.74f - 0.07f * phaseB + animatedEnergy * 0.02f),
+        )
+
+        drawRect(color = Color(0xFF030409))
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(magenta.copy(alpha = glowAlpha), Color.Transparent),
+                center = magentaCenter,
+                radius = radiusLarge,
+            ),
+            radius = radiusLarge,
+            center = magentaCenter,
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(cyan.copy(alpha = glowAlpha * 0.92f), Color.Transparent),
+                center = cyanCenter,
+                radius = radiusMedium,
+            ),
+            radius = radiusMedium,
+            center = cyanCenter,
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(lime.copy(alpha = glowAlpha * 0.82f), Color.Transparent),
+                center = limeCenter,
+                radius = radiusSmall,
+            ),
+            radius = radiusSmall,
+            center = limeCenter,
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(amber.copy(alpha = glowAlpha * 0.86f), Color.Transparent),
+                center = amberCenter,
+                radius = radiusMedium,
+            ),
+            radius = radiusMedium,
+            center = amberCenter,
         )
     }
 }
@@ -8876,12 +9395,27 @@ private fun PlaylistArtworkCollage(
 }
 
 @Composable
-private fun rememberArtworkBitmap(artworkBytes: ByteArray?): ImageBitmap? =
-    remember(artworkBytes) {
-        artworkBytes?.takeIf(ByteArray::isNotEmpty)?.let { encoded ->
-            runCatching { SkiaImage.makeFromEncoded(encoded).toComposeImageBitmap() }.getOrNull()
+private fun rememberArtworkBitmap(artworkBytes: ByteArray?): ImageBitmap? {
+    if (artworkBytes == null || artworkBytes.isEmpty()) return null
+    val hash = remember(artworkBytes) { artworkBytes.contentHashCode() }
+    val cached = artworkCache[hash]
+    if (cached != null) return cached
+
+    var bitmap by remember(hash) { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(hash) {
+        val decoded = withContext(Dispatchers.IO) {
+            runCatching {
+                SkiaImage.makeFromEncoded(artworkBytes).toComposeImageBitmap()
+            }.getOrNull()
+        }
+        if (decoded != null) {
+            artworkCache[hash] = decoded
+            bitmap = decoded
         }
     }
+    return bitmap
+}
 
 @Composable
 private fun SectionLabel(text: String) {

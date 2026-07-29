@@ -42,6 +42,7 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "com.example.verseflow.desktop.MainKt"
+        jvmArgs += "-Dverseflow.desktop.dev=true"
 
         nativeDistributions {
             if (nativeTargetFormats.isNotEmpty()) {

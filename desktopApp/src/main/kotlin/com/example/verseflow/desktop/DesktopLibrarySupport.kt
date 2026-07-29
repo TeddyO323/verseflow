@@ -362,11 +362,11 @@ fun stableId(value: String): String =
 private fun paletteFromSeed(seed: String): List<Color> {
     val base = seed.hashCode().absoluteValue
     val options = listOf(
-        listOf(Color(0xFF0F1330), Color(0xFF0000FF), Color(0xFF66F2FF)),
-        listOf(Color(0xFF120A2A), Color(0xFF4328A8), Color(0xFF8FD4FF)),
-        listOf(Color(0xFF07111F), Color(0xFF0D5BFF), Color(0xFF61F2FF)),
-        listOf(Color(0xFF0B1020), Color(0xFF2A50FF), Color(0xFFA8D9FF)),
-        listOf(Color(0xFF160B26), Color(0xFF5A26FF), Color(0xFF5CCFFF)),
+        listOf(Color(0xFF1E2660), Color(0xFF3B59FF), Color(0xFF66F2FF)),
+        listOf(Color(0xFF241454), Color(0xFF683DFF), Color(0xFF8FD4FF)),
+        listOf(Color(0xFF0E223E), Color(0xFF1F75FF), Color(0xFF61F2FF)),
+        listOf(Color(0xFF162040), Color(0xFF4C70FF), Color(0xFFA8D9FF)),
+        listOf(Color(0xFF2C164C), Color(0xFF8744FF), Color(0xFF5CCFFF)),
     )
     return options[base % options.size]
 }
@@ -412,9 +412,9 @@ private fun paletteFromArtworkBytes(artworkBytes: ByteArray?): List<Color>? {
     val highlight = mixColor(accent, neutralAverage, 0.12f)
 
     return listOf(
-        base.darken(0.34f),
-        mid.darken(0.08f),
-        highlight.lighten(0.18f),
+        base,
+        mid,
+        highlight,
     )
 }
 
@@ -451,7 +451,7 @@ private fun colorSaturation(color: Color): Float {
     return if (maxChannel == 0f) 0f else (maxChannel - minChannel) / maxChannel
 }
 
-private fun mixColor(start: Color, end: Color, fraction: Float): Color {
+internal fun mixColor(start: Color, end: Color, fraction: Float): Color {
     val safeFraction = fraction.coerceIn(0f, 1f)
     return Color(
         red = start.red + ((end.red - start.red) * safeFraction),
@@ -461,10 +461,10 @@ private fun mixColor(start: Color, end: Color, fraction: Float): Color {
     )
 }
 
-private fun Color.lighten(amount: Float): Color =
+internal fun Color.lighten(amount: Float): Color =
     mixColor(this, Color.White, amount.coerceIn(0f, 1f))
 
-private fun Color.darken(amount: Float): Color =
+internal fun Color.darken(amount: Float): Color =
     mixColor(this, Color.Black, amount.coerceIn(0f, 1f))
 
 private val FeatureArtistPattern = Regex("""(?i)\b(?:feat(?:uring)?|ft)\.?\s+([^\)\]]+)""")
